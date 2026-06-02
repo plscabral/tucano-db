@@ -7,16 +7,30 @@ type R<T> = Result<T, String>;
 
 async fn open_client(uri: &str) -> R<mongodb::Client> {
     use mongodb::options::{ClientOptions, ResolverConfig};
+    use std::time::Duration;
 
     // For `mongodb+srv://` the driver does a DNS SRV lookup using the system
     // resolver, which on macOS/VPN setups can fail to parse the nameserver
     // ("failed to parse nameserver address"). Force a reliable public resolver
     // (Cloudflare) so SRV resolution works regardless of the system config.
     // Plain `mongodb://` URIs don't use the resolver, so this is harmless there.
-    let options = ClientOptions::parse(uri)
+    let mut options = ClientOptions::parse(uri)
         .resolver_config(ResolverConfig::cloudflare())
         .await
         .map_err(|e| format!("invalid connection string: {e}"))?;
+
+    // Fail fast instead of hanging on the driver's 30s default. Only override
+    // when the user hasn't pinned their own timeout in the URI.
+    if options.server_selection_timeout.is_none() {
+        options.server_selection_timeout = Some(Duration::from_secs(8));
+    }
+    if options.connect_timeout.is_none() {
+        options.connect_timeout = Some(Duration::from_secs(8));
+    }
+    if options.app_name.is_none() {
+        options.app_name = Some("tucano-db".to_string());
+    }
+
     let client = mongodb::Client::with_options(options)
         .map_err(|e| format!("invalid connection string: {e}"))?;
 
@@ -25,8 +39,58 @@ async fn open_client(uri: &str) -> R<mongodb::Client> {
         .database("admin")
         .run_command(doc! { "ping": 1 })
         .await
-        .map_err(|e| format!("could not reach server: {e}"))?;
+        .map_err(|e| friendly_conn_error(uri, &e))?;
     Ok(client)
+}
+
+/// Turn the MongoDB driver's verbose, low-level errors into a short, actionable
+/// message. The raw "Server selection timeout: None of the available servers
+/// suitable for criteria ReadPreference(...)" is unreadable for users and almost
+/// always means the host is unreachable or a replica set is advertising
+/// hostnames the client can't resolve.
+fn friendly_conn_error(uri: &str, e: &mongodb::error::Error) -> String {
+    use mongodb::error::ErrorKind;
+
+    match e.kind.as_ref() {
+        ErrorKind::ServerSelection { .. } => {
+            // Multiple hosts (or a +srv record) means the driver does replica
+            // set / mongos discovery and may switch to internal hostnames that
+            // aren't reachable from here.
+            let multi_host = uri.contains("+srv") || host_part(uri).contains(',');
+            if multi_host {
+                "Could not reach the server in time. The hosts are unreachable, \
+                 or the replica set is advertising internal hostnames this machine \
+                 can't resolve. Check your network/VPN and DNS. To connect straight \
+                 to one node, use a single host with ?directConnection=true."
+                    .to_string()
+            } else {
+                "Could not reach the server in time. Check the host and port, and \
+                 that the server is running and reachable from this machine \
+                 (firewall / VPN)."
+                    .to_string()
+            }
+        }
+        ErrorKind::Authentication { message, .. } => {
+            format!("Authentication failed: {message}")
+        }
+        ErrorKind::InvalidArgument { message, .. } => {
+            format!("Invalid connection string: {message}")
+        }
+        _ => format!("could not reach server: {e}"),
+    }
+}
+
+/// The `host:port,host:port` slice of a connection string, used to detect a
+/// multi-host (replica set) URI. Returns "" if the URI has no host section.
+fn host_part(uri: &str) -> &str {
+    let after_scheme = uri.split("://").nth(1).unwrap_or("");
+    // Strip credentials.
+    let after_auth = after_scheme.rsplit('@').next().unwrap_or(after_scheme);
+    // Stop at the path / query.
+    after_auth
+        .split(['/', '?'])
+        .next()
+        .unwrap_or(after_auth)
 }
 
 #[tauri::command]

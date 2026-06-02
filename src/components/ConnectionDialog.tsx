@@ -109,15 +109,15 @@ export function ConnectionDialog() {
           {test.kind !== "idle" && (
             <div
               className={cn(
-                "flex items-center gap-2 rounded-md border px-3 py-2 text-xs",
+                "flex items-start gap-2 rounded-md border px-3 py-2 text-xs",
                 test.kind === "ok" && "border-emerald-500/40 text-emerald-500",
                 test.kind === "err" && "border-destructive/40 text-destructive",
                 test.kind === "testing" && "text-muted-foreground"
               )}
             >
-              {test.kind === "testing" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              {test.kind === "ok" && <Check className="h-3.5 w-3.5" />}
-              <span className="truncate">{test.msg ?? t("conn.connecting")}</span>
+              {test.kind === "testing" && <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin" />}
+              {test.kind === "ok" && <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
+              <span className="min-w-0 break-words">{test.msg ?? t("conn.connecting")}</span>
             </div>
           )}
         </div>
