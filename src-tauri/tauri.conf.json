@@ -1,0 +1,62 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Tucano DB",
+  "version": "0.1.0",
+  "identifier": "dev.tucano.db",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build",
+    "devUrl": "http://127.0.0.1:1420",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "macOSPrivateApi": false,
+    "windows": [
+      {
+        "title": "Tucano DB",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600,
+        "decorations": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "transparent": false,
+        "backgroundColor": "#0F1014",
+        "trafficLightPosition": { "x": 18, "y": 20 },
+        "dragDropEnabled": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "DeveloperTool",
+    "shortDescription": "Open source MongoDB GUI",
+    "longDescription": "Tucano DB is an open source desktop GUI for MongoDB — connect, browse, query, edit and analyze your databases on Windows and macOS.",
+    "macOS": {
+      "signingIdentity": "-"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/plscabral/tucano-db/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZCRTM1RUJDQUY3MjIxRDMKUldUVElYS3Z2RjdqYTdGZW1nemFqS05Ja2pBS2JIRjg0ZFVxNEkybUdOYWNzcFE5WnZYUHd5YTgK",
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

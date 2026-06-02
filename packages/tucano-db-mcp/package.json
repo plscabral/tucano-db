@@ -1,0 +1,14 @@
+{
+  "name": "tucano-db-mcp",
+  "version": "0.1.0",
+  "description": "MCP server bridging Claude to a running Tucano DB instance.",
+  "type": "module",
+  "bin": {
+    "tucano-db-mcp": "bin/tucano-db-mcp.js"
+  },
+  "files": ["bin"],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4"
+  }
+}

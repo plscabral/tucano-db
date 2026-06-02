@@ -1,0 +1,45 @@
+[package]
+name = "tucano-db"
+version = "0.1.0"
+description = "Tucano DB — open source MongoDB GUI"
+authors = ["Paulo Cabral"]
+license = "MIT"
+edition = "2021"
+
+[lib]
+name = "tucano_db_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "tucano-db"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-store = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+mongodb = "3"
+bson = "2"
+futures = "0.3"
+rusqlite = { version = "0.32", features = ["bundled"] }
+uuid = { version = "1", features = ["v4"] }
+parking_lot = "0.12"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+dirs = "5"
+axum = "0.7"
+csv = "1"
+rust_xlsxwriter = "0.79"
+toml_edit = "0.22"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

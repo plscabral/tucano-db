@@ -1,0 +1,269 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* shadcn tokens — light, matching Tucano Proxy's two tones: WHITE chrome
+       (sidebar / top bar / status bar) framing a slightly deeper warm-paper
+       content/grid area. Cards and floating surfaces are white. */
+    --background: 45 16% 96%;
+    --foreground: 224 48% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 224 48% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 48% 10%;
+    --primary: 190 72% 32%;
+    --primary-foreground: 190 60% 98%;
+    --secondary: 45 12% 92%;
+    --secondary-foreground: 224 38% 16%;
+    --muted: 45 12% 93%;
+    --muted-foreground: 224 12% 42%;
+    --accent: 44 14% 91%;
+    --accent-foreground: 224 38% 16%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 40 13% 87%;
+    --input: 40 13% 87%;
+    --ring: 190 72% 36%;
+    --radius: 0.75rem;
+
+    /* Chrome (sidebar/top/status) is white; content/grid uses the warm paper
+       (--background) so the white frame reads against it — like Tucano Proxy. */
+    --tcn-canvas: #FFFFFF;
+    --tcn-surface: #FFFFFF;
+  }
+
+  .dark {
+    /* shadcn tokens — dark. True-near-black canvas with neutral elevated
+       surfaces so the teal brand accent reads cleanly. */
+    --background: 228 14% 7%;
+    --foreground: 0 0% 96%;
+    --card: 228 14% 7%;
+    --card-foreground: 0 0% 96%;
+    --popover: 228 14% 7%;
+    --popover-foreground: 0 0% 96%;
+    --primary: 190 68% 48%;
+    --primary-foreground: 200 60% 8%;
+    --secondary: 240 5% 12%;
+    --secondary-foreground: 0 0% 92%;
+    --muted: 240 5% 11%;
+    --muted-foreground: 240 5% 62%;
+    --accent: 240 5% 14%;
+    --accent-foreground: 0 0% 92%;
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 5% 14%;
+    --input: 240 5% 14%;
+    --ring: 190 66% 52%;
+
+    /* Single flat brand tone — dark. surface == canvas (#0F1014). */
+    --tcn-canvas: #0F1014;
+    --tcn-surface: #0F1014;
+  }
+
+  /* Default every bare `border` utility to the brand border token instead of
+     currentColor (which renders as a harsh white/near-white edge). */
+  * {
+    border-color: hsl(var(--border));
+  }
+}
+
+:root {
+  --ink: #080D1B;
+  /* Brand accent — teal-cyan, oklch(0.62 0.115 205). */
+  --tucano: oklch(0.62 0.115 205);
+  --tucano-rgb: 26, 150, 173; /* sRGB fallback for rgba() shadows/selection */
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: "Manrope", system-ui, sans-serif;
+  font-feature-settings: "kern", "liga";
+  background: #F4F1E9;
+  color: #080D1B;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html.dark body {
+  background: var(--tcn-canvas);
+  color: #EDEEF3;
+}
+
+html.dark input[type="number"] {
+  color-scheme: dark;
+}
+
+/* Text selection — brand teal everywhere. */
+::selection {
+  background: rgba(var(--tucano-rgb), 0.28);
+}
+::-moz-selection {
+  background: rgba(var(--tucano-rgb), 0.28);
+}
+
+/* Faint engineering-grid texture — the brand's "graph paper" ornament. */
+.tcn-grid {
+  background-image:
+    linear-gradient(to right, rgba(15, 24, 46, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 24, 46, 0.045) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+html.dark .tcn-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.mono {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-feature-settings: "kern";
+  letter-spacing: -0.01em;
+}
+
+/* Editorial display accent — Newsreader italic for the "accent word" in
+   display headings (brand wordmark, onboarding, empty states). */
+.font-accent {
+  font-family: "Newsreader", ui-serif, Georgia, serif;
+  font-style: italic;
+}
+
+/* ── Brand gradient system (Tucano DB teal) ────────────────────────────── */
+/* Filled accent — primary CTAs. Diagonal teal with a top sheen. */
+.tcn-accent {
+  background-image: linear-gradient(135deg, oklch(0.7 0.11 205) 0%, oklch(0.62 0.115 205) 45%, oklch(0.55 0.11 205) 100%);
+  color: #fff;
+}
+.tcn-accent-glow {
+  box-shadow:
+    0 8px 22px -10px rgba(var(--tucano-rgb), 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+.tcn-accent:hover { filter: brightness(1.06); }
+
+/* Soft accent wash — tinted surfaces / active nav. */
+.tcn-accent-soft {
+  background-image: linear-gradient(135deg, rgba(var(--tucano-rgb), 0.18), rgba(var(--tucano-rgb), 0.06));
+}
+
+/* Top-light card sheen — subtle depth on dark panels. */
+.tcn-sheen {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 60%);
+}
+
+/* Radial brand glow — sits behind heroes / modal headers. */
+.tcn-glow-radial {
+  background-image: radial-gradient(120% 80% at 50% -10%, rgba(var(--tucano-rgb), 0.22) 0%, transparent 60%);
+}
+
+/* Neon primary — the hero CTA. Vivid teal with a layered outer glow. */
+.tcn-neon {
+  background-image: linear-gradient(135deg, oklch(0.74 0.11 205) 0%, oklch(0.62 0.115 205) 52%, oklch(0.54 0.11 205) 100%);
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 6px 16px -6px rgba(var(--tucano-rgb), 0.85),
+    0 0 26px -4px rgba(var(--tucano-rgb), 0.65);
+  transition: box-shadow .18s, filter .18s;
+}
+.tcn-neon:hover {
+  filter: brightness(1.07) saturate(1.05);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 8px 20px -6px rgba(var(--tucano-rgb), 0.95),
+    0 0 36px -2px rgba(var(--tucano-rgb), 0.8);
+}
+
+/* App chrome surface — matches the page background so TopBar / Toolbar /
+   StatusBar / Sidebar read as one continuous surface with the canvas. */
+.tcn-glass {
+  background: var(--tcn-canvas);
+  border: 1px solid rgba(15, 24, 46, 0.08);
+}
+html.dark .tcn-glass {
+  background: var(--tcn-canvas);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+/* Stronger glass — for dropdowns and modals where the surface needs to feel
+   like a distinct floating layer. */
+.tcn-glass-strong {
+  background: var(--tcn-surface);
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  border: 1px solid rgba(15, 24, 46, 0.10);
+}
+html.dark .tcn-glass-strong {
+  background: var(--tcn-surface);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Subtle elevated card for sidebars / panels. */
+.tcn-surface {
+  background: linear-gradient(180deg, rgba(255,255,255,0.65), rgba(255,255,255,0.4));
+}
+html.dark .tcn-surface {
+  background: linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.005));
+}
+
+.scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+.scroll-thin::-webkit-scrollbar-track { background: transparent; }
+.scroll-thin::-webkit-scrollbar-thumb { background: rgba(60,65,85,.55); border-radius: 4px; border: 2px solid transparent; background-clip: padding-box; }
+.scroll-thin::-webkit-scrollbar-thumb:hover { background: rgba(60,65,85,.8); background-clip: padding-box; border: 2px solid transparent; }
+html.dark .scroll-thin::-webkit-scrollbar-thumb { background: rgba(200,200,210,.18); background-clip: padding-box; border: 2px solid transparent; }
+html.dark .scroll-thin::-webkit-scrollbar-thumb:hover { background: rgba(200,200,210,.4); background-clip: padding-box; border: 2px solid transparent; }
+
+/* Placeholder rows behind the virtualized document layer. */
+.tcn-row-skeleton {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(15, 24, 46, 0.035) 0,
+    rgba(15, 24, 46, 0.035) 31px,
+    rgba(15, 24, 46, 0.12) 31px,
+    rgba(15, 24, 46, 0.12) 32px
+  );
+}
+html.dark .tcn-row-skeleton {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 31px,
+    rgba(255, 255, 255, 0.04) 31px,
+    rgba(255, 255, 255, 0.04) 32px
+  );
+}
+
+/* Staggered entrance for hero / start-screen elements. */
+@keyframes tcn-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.tcn-rise {
+  animation: tcn-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Soft conic/radial aura used behind the start-screen brand mark. */
+.tcn-aura {
+  background:
+    radial-gradient(closest-side, rgba(var(--tucano-rgb), 0.35), transparent 70%);
+  filter: blur(6px);
+}
+
+/* CodeMirror search match palette — match the native browser-find look. */
+.cm-editor .cm-searchMatch {
+  background: #FFFF00 !important;
+  color: #000 !important;
+  outline: none !important;
+}
+.cm-editor .cm-searchMatch-selected {
+  background: #FF9632 !important;
+  color: #000 !important;
+}

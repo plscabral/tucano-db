@@ -1,0 +1,16 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+src-tauri/target/
+src-tauri/gen/
+
+# logs / os
+*.log
+.DS_Store
+
+# env
+.env
+.env.local
