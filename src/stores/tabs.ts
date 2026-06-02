@@ -283,6 +283,9 @@ export const useTabs = create<TabsState>((set, get) => ({
 
     try {
       if (parsed.kind === "find") {
+        // A query-level limit (findOne → 1, `.limit(n)`) only sizes THIS request;
+        // it must not overwrite the tab's pagination pageSize, or removing the
+        // limit later (e.g. findOne → find) would leave it stuck at the old value.
         const pageSize = parsed.limit ?? tab.pageSize;
         // A grid-header sort overrides the query's own sort.
         const sort = tab.gridSort
@@ -299,7 +302,7 @@ export const useTabs = create<TabsState>((set, get) => ({
           pageSize,
           skip: parsed.skip ?? 0,
         });
-        get().update(id, { result, pageSize, isAggregate: false, loading: false });
+        get().update(id, { result, isAggregate: false, loading: false });
       } else if (parsed.kind === "aggregate") {
         const limit = parsed.limit ?? 200;
         const started = performance.now();
