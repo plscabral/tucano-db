@@ -3,10 +3,11 @@ import { keymap } from "@codemirror/view";
 import { Prec } from "@codemirror/state";
 import { javascript } from "@codemirror/lang-javascript";
 import { sql } from "@codemirror/lang-sql";
-import { Loader2, Play, Save } from "lucide-react";
+import { Loader2, Play, Save, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RawEditor } from "@/viewers/RawEditor";
 import { queryAutocomplete, sqlAutocomplete } from "@/lib/autocomplete";
+import { formatQuery } from "@/lib/queryParser";
 import { ipc } from "@/lib/ipc";
 import { useTabs, type Tab } from "@/stores/tabs";
 import { useTree } from "@/stores/tree";
@@ -45,6 +46,16 @@ export function QueryEditor({ tab }: { tab: Tab }) {
 
   const exec = () => run(tab.id);
 
+  const formatText = (text: string) => {
+    try {
+      const next = formatQuery(tab.lang, text);
+      if (next && next !== text) update(tab.id, { query: next });
+    } catch {
+      /* unparseable query — leave it untouched */
+    }
+  };
+  const format = () => formatText(tab.query);
+
   // Memoize so the editor isn't rebuilt on every keystroke (caused freezing).
   const language = useMemo(() => (tab.lang === "sql" ? sql() : javascript()), [tab.lang]);
 
@@ -52,7 +63,12 @@ export function QueryEditor({ tab }: { tab: Tab }) {
     () => [
       tab.lang === "sql" ? sqlAutocomplete(collections, fields) : queryAutocomplete(collections, fields),
       // Highest precedence so ⌘↵ wins over the default editor keymap.
-      Prec.highest(keymap.of([{ key: "Mod-Enter", run: () => (exec(), true) }])),
+      Prec.highest(
+        keymap.of([
+          { key: "Mod-Enter", run: () => (exec(), true) },
+          { key: "Shift-Alt-f", run: (v) => (formatText(v.state.doc.toString()), true) },
+        ])
+      ),
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tab.lang, collections.join(","), fields]
@@ -84,6 +100,15 @@ export function QueryEditor({ tab }: { tab: Tab }) {
           {tab.lang === "sql" ? "SELECT … FROM " + (tab.coll ?? "collection") : "db." + (tab.coll ?? "collection") + ".find()"}
         </span>
         <div className="flex-1" />
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 gap-1 px-2 text-[11px]"
+          onClick={format}
+          title="⇧⌥F"
+        >
+          <Wand2 className="h-3 w-3" /> {t("query.format")}
+        </Button>
         <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-[11px]" onClick={doSave}>
           <Save className="h-3 w-3" /> {t("set.save")}
         </Button>

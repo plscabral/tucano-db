@@ -14,6 +14,7 @@ import { CollectionActions } from "@/components/CollectionActions";
 import { QueryHistoryDialog } from "@/components/QueryHistoryDialog";
 import { DatabasesDialog } from "@/components/DatabasesDialog";
 import { SaveQueryDialog, useSaveDialog } from "@/components/SaveQueryDialog";
+import { ExportDialog } from "@/components/ExportDialog";
 import { useConnections } from "@/stores/connections";
 import { useSettings } from "@/stores/settings";
 import { useTabs } from "@/stores/tabs";
@@ -93,6 +94,7 @@ export default function App() {
         <QueryHistoryDialog />
         <DatabasesDialog />
         <SaveQueryDialog />
+        <ExportDialog />
       </div>
     </TooltipProvider>
   );

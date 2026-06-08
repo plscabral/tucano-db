@@ -1,11 +1,45 @@
 import {
   autocompletion,
+  snippetCompletion,
   type Completion,
   type CompletionContext,
   type CompletionResult,
 } from "@codemirror/autocomplete";
 import type { Extension } from "@codemirror/state";
 import type { FieldSchema } from "./types";
+
+/** Is `s` a bare JS identifier (so it can be an unquoted object key)? */
+const isIdent = (s: string) => /^[A-Za-z_$][\w$]*$/.test(s);
+
+/**
+ * CodeMirror snippet for a field's *value*, picked from its observed BSON type,
+ * so selecting a field drops you into the right literal: a string gets `"…"`,
+ * an ObjectId `ObjectId("…")`, a date `ISODate("…")`, etc. `${}` marks where
+ * the cursor lands. `json` emits Extended-JSON value forms for the strict-JSON
+ * editor instead of shell constructors.
+ */
+function valueSnippet(types: string[], json = false): string {
+  const t = types.find((x) => x && x !== "null") ?? "string";
+  switch (t) {
+    case "objectId":
+      return json ? '{ "$oid": "${}" }' : 'ObjectId("${}")';
+    case "date":
+      return json ? '{ "$date": "${}" }' : 'ISODate("${}")';
+    case "bool":
+      return "${false}";
+    case "int":
+    case "long":
+    case "double":
+    case "decimal":
+      return "${}";
+    case "array":
+      return "[${}]";
+    case "object":
+      return "{${}}";
+    default:
+      return '"${}"';
+  }
+}
 
 /** MongoDB query operators surfaced in the filter editor. */
 const OPERATORS: Completion[] = [
@@ -38,12 +72,21 @@ const OPERATORS: Completion[] = [
  * plus the MongoDB operator list. Field completions are quoted JSON keys.
  */
 export function mongoAutocomplete(fields: FieldSchema[]): Extension {
-  const fieldCompletions: Completion[] = fields.map((f) => ({
+  // Name-only (when a value already follows) vs. key + typed value snippet.
+  const nameOnly: Completion[] = fields.map((f) => ({
     label: `"${f.path}"`,
     type: "property",
     detail: f.types.join(" | "),
     boost: 1,
   }));
+  const withValue: Completion[] = fields.map((f) =>
+    snippetCompletion(`"${f.path}": ${valueSnippet(f.types, true)}`, {
+      label: `"${f.path}"`,
+      type: "property",
+      detail: f.types.join(" | "),
+      boost: 1,
+    })
+  );
 
   const source = (ctx: CompletionContext): CompletionResult | null => {
     // Operators trigger right after `$`.
@@ -60,12 +103,18 @@ export function mongoAutocomplete(fields: FieldSchema[]): Extension {
     if (!word || (word.from === word.to && !ctx.explicit)) return null;
     return {
       from: word.from,
-      options: fieldCompletions,
+      options: hasValueAhead(ctx) ? nameOnly : withValue,
       validFor: /^"?[\w.]*"?$/,
     };
   };
 
   return autocompletion({ override: [source], icons: false });
+}
+
+/** A `:` already follows the cursor → the key has a value; don't add one. */
+function hasValueAhead(ctx: CompletionContext): boolean {
+  const after = ctx.state.sliceDoc(ctx.pos, Math.min(ctx.state.doc.length, ctx.pos + 40));
+  return /^"?\s*:/.test(after);
 }
 
 const mkMethods = (names: string[]): Completion[] =>
@@ -154,11 +203,19 @@ export function queryAutocomplete(collections: string[], fields: FieldSchema[]):
     detail: "collection",
     boost: 2,
   }));
-  const fieldCompletions: Completion[] = fields.map((f) => ({
+  // Shell mode: bare keys, value snippets carrying the field's BSON type.
+  const fieldNames: Completion[] = fields.map((f) => ({
     label: f.path,
     type: "property",
     detail: f.types.join(" | "),
   }));
+  const fieldWithValue: Completion[] = fields.map((f) =>
+    snippetCompletion(`${isIdent(f.path) ? f.path : JSON.stringify(f.path)}: ${valueSnippet(f.types)}`, {
+      label: f.path,
+      type: "property",
+      detail: f.types.join(" | "),
+    })
+  );
 
   const source = (ctx: CompletionContext): CompletionResult | null => {
     // operators ($gt, $in, …)
@@ -179,7 +236,11 @@ export function queryAutocomplete(collections: string[], fields: FieldSchema[]):
     // field names inside objects
     const fieldWord = ctx.matchBefore(/"?[\w.]*$/);
     if (!fieldWord || (fieldWord.from === fieldWord.to && !ctx.explicit)) return null;
-    return { from: fieldWord.from, options: fieldCompletions, validFor: /^"?[\w.]*"?$/ };
+    return {
+      from: fieldWord.from,
+      options: hasValueAhead(ctx) ? fieldNames : fieldWithValue,
+      validFor: /^"?[\w.]*"?$/,
+    };
   };
 
   return autocompletion({ override: [source], icons: false });

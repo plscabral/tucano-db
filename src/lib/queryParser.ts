@@ -21,6 +21,76 @@ export type ParsedQuery =
   | { kind: "aggregate"; coll: string; pipeline: string; limit?: number }
   | { kind: "count"; coll: string; filter: string };
 
+/**
+ * Rewrite JS regex literals (`/pattern/flags`) into the canonical Extended JSON
+ * the backend understands (`{"$regularExpression":{"pattern":…,"options":…}}`).
+ *
+ * Runs over the *whole* query before any brace-depth scanning so that a regex
+ * containing `(`, `[`, `{`, `,` … never corrupts argument splitting. A `/` is
+ * treated as the start of a regex only when it sits in a value position — right
+ * after `:`, `,`, `[`, `(`, or at the very start — which is where Mongo filters
+ * place them; everywhere else (e.g. a stray division) it is left untouched.
+ */
+function transformRegexLiterals(src: string): string {
+  let out = "";
+  let inStr: string | null = null;
+  let prev = ""; // last non-whitespace char emitted in code context
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (inStr) {
+      out += ch;
+      if (ch === "\\") out += src[++i] ?? "";
+      else if (ch === inStr) inStr = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === "`") {
+      inStr = ch;
+      out += ch;
+      prev = ch;
+      continue;
+    }
+    if (ch === "/" && (prev === "" || ":,[({".includes(prev))) {
+      let j = i + 1;
+      let pattern = "";
+      let inClass = false;
+      let closed = false;
+      while (j < src.length) {
+        const c = src[j];
+        if (c === "\\") {
+          pattern += c + (src[j + 1] ?? "");
+          j += 2;
+          continue;
+        }
+        if (c === "\n") break; // unterminated → not a regex
+        if (c === "[") inClass = true;
+        else if (c === "]") inClass = false;
+        else if (c === "/" && !inClass) {
+          closed = true;
+          break;
+        }
+        pattern += c;
+        j++;
+      }
+      if (closed) {
+        let k = j + 1;
+        let flags = "";
+        while (k < src.length && /[a-z]/i.test(src[k])) flags += src[k++];
+        // Mongo only honours i/m/s/x; drop JS-only flags (g/u/y/d) so the
+        // server doesn't reject the query.
+        const options = [...new Set(flags.toLowerCase())].filter((f) => "imsx".includes(f)).join("");
+        out += JSON.stringify({ $regularExpression: { pattern, options } });
+        prev = "}";
+        i = k - 1;
+        continue;
+      }
+      // Not a terminated regex literal — emit the `/` verbatim.
+    }
+    out += ch;
+    if (!/\s/.test(ch)) prev = ch;
+  }
+  return out;
+}
+
 /** Rewrite shell constructors into the Extended JSON the backend understands. */
 function preprocess(src: string): string {
   return src
@@ -32,11 +102,130 @@ function preprocess(src: string): string {
     .replace(/NumberDecimal\(\s*(['"])([^'"]+)\1\s*\)/g, '{"$numberDecimal":"$2"}');
 }
 
+/** A 24-char hex string is the textual form of an ObjectId. */
+const HEX24 = /^[0-9a-fA-F]{24}$/;
+
+/** Keys that mark an already-typed Extended-JSON value (vs. a query operator). */
+const EXTJSON_MARKERS = new Set([
+  "$oid",
+  "$date",
+  "$numberInt",
+  "$numberLong",
+  "$numberDouble",
+  "$numberDecimal",
+  "$timestamp",
+  "$binary",
+  "$regularExpression",
+  "$minKey",
+  "$maxKey",
+  "$undefined",
+  "$symbol",
+  "$code",
+  "$scope",
+  "$dbPointer",
+  "$ref",
+]);
+
+/**
+ * Mongo stores `_id` as an ObjectId by default, so let users write
+ * `_id: "<24-hex>"` (or `_id: { $in: ["<24-hex>", …] }`) and treat the plain
+ * string as an ObjectId — no `ObjectId(…)` / `{$oid:…}` ceremony required.
+ * Only kicks in for `_id` keys whose value is exactly a 24-char hex string;
+ * anything else (real string ids, non-hex values) is left untouched.
+ */
+function coerceIdStrings(value: unknown, key?: string): unknown {
+  if (typeof value === "string") {
+    return key === "_id" && HEX24.test(value) ? { $oid: value } : value;
+  }
+  if (Array.isArray(value)) return value.map((v) => coerceIdStrings(v, key));
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    // A typed wrapper ({$oid}, {$date}, …) is opaque — never look inside it.
+    if (Object.keys(obj).some((k) => EXTJSON_MARKERS.has(k))) return obj;
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      // operators ($in, $eq, …) under an _id key inherit the _id context.
+      out[k] = coerceIdStrings(v, k.startsWith("$") ? key : k);
+    }
+    return out;
+  }
+  return value;
+}
+
 /** Convert a JS object/array literal into a strict JSON string. */
 function toJson(src: string): string {
   const s = src.trim();
   if (!s) return "";
-  const value = JSON5.parse(preprocess(s));
+  const value = coerceIdStrings(JSON5.parse(preprocess(s)));
+  return JSON.stringify(value);
+}
+
+/** Render an object key for shell source: unquoted when a valid identifier. */
+function shellKey(k: string): string {
+  return /^[A-Za-z_$][\w$]*$/.test(k) ? k : JSON.stringify(k);
+}
+
+const SHELL_INDENT = "  ";
+/** Objects/arrays whose inline form exceeds this width are broken onto lines. */
+const SHELL_WIDTH = 72;
+
+/**
+ * Render a value (parsed from canonical Extended JSON) as mongo-shell source —
+ * the inverse of {@link preprocess}. Recovers `ObjectId(…)`, `ISODate(…)`,
+ * `NumberLong(…)` … so generated queries read the way a human would type them
+ * instead of leaking `{"$oid":…}` / `{"$date":{"$numberLong":…}}` wrappers.
+ * Compound values stay inline while short and wrap onto indented lines once
+ * they grow past {@link SHELL_WIDTH}.
+ */
+export function toShellLiteral(value: unknown, depth = 0): string {
+  if (value === null) return "null";
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "[]";
+    const items = value.map((v) => toShellLiteral(v, depth + 1));
+    const inline = `[${items.join(", ")}]`;
+    if (inline.length + depth * 2 <= SHELL_WIDTH && !inline.includes("\n")) return inline;
+    const pad = SHELL_INDENT.repeat(depth + 1);
+    return `[\n${items.map((i) => pad + i).join(",\n")}\n${SHELL_INDENT.repeat(depth)}]`;
+  }
+
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    const ks = Object.keys(obj);
+    if (ks.length === 1) {
+      const inner = obj[ks[0]];
+      switch (ks[0]) {
+        case "$oid":
+          return `ObjectId("${inner}")`;
+        case "$date": {
+          const ms =
+            typeof inner === "string"
+              ? Date.parse(inner)
+              : Number((inner as Record<string, unknown>)?.$numberLong ?? inner ?? 0);
+          return `ISODate("${new Date(ms).toISOString()}")`;
+        }
+        case "$numberLong":
+          return `NumberLong("${inner}")`;
+        case "$numberDecimal":
+          return `NumberDecimal("${inner}")`;
+        case "$numberInt":
+        case "$numberDouble":
+          return String(inner);
+        case "$regularExpression": {
+          const r = inner as Record<string, unknown>;
+          return `/${r.pattern}/${r.options ?? ""}`;
+        }
+      }
+    }
+    if (ks.length === 0) return "{}";
+    const entries = ks.map((k) => `${shellKey(k)}: ${toShellLiteral(obj[k], depth + 1)}`);
+    const inline = `{ ${entries.join(", ")} }`;
+    if (inline.length + depth * 2 <= SHELL_WIDTH && !inline.includes("\n")) return inline;
+    const pad = SHELL_INDENT.repeat(depth + 1);
+    return `{\n${entries.map((e) => pad + e).join(",\n")}\n${SHELL_INDENT.repeat(depth)}}`;
+  }
   return JSON.stringify(value);
 }
 
@@ -108,7 +297,7 @@ function extractCalls(rest: string): { name: string; args: string }[] {
 }
 
 export function parseQuery(text: string): ParsedQuery {
-  const src = text.trim().replace(/;+\s*$/, "");
+  const src = transformRegexLiterals(text.trim().replace(/;+\s*$/, ""));
   const m = src.match(/db\s*\.\s*(?:getCollection\(\s*['"]([^'"]+)['"]\s*\)|([\w$]+))/);
   if (!m) throw new Error("Query must start with db.<collection>");
   const coll = m[1] || m[2];
@@ -153,9 +342,81 @@ export function parseQuery(text: string): ParsedQuery {
   );
 }
 
+/** `db.<coll>` reference, escaping names that aren't valid identifiers. */
+export function collRef(coll: string): string {
+  return `db.${/^[A-Za-z_$][\w$]*$/.test(coll) ? coll : `getCollection("${coll}")`}`;
+}
+
 /** The default query text shown when a collection is opened. */
 export function defaultQuery(coll: string): string {
-  return `db.${/^[A-Za-z_$][\w$]*$/.test(coll) ? coll : `getCollection("${coll}")`}.find({})`;
+  return `${collRef(coll)}.find({})\n    .projection({})\n    .sort({ _id: -1 })\n    .limit(50)`;
+}
+
+/** True when the argument was actually supplied (even as `{}`), so it's kept. */
+function isPresent(s: string | undefined): boolean {
+  return (s ?? "").trim() !== "";
+}
+
+/**
+ * Reconstruct a mongo-shell `find()` query as a chained, multi-line statement —
+ * `.projection()/.sort()/.skip()/.limit()` on their own indented lines, each
+ * stage kept only when it was present. JSON-string args are re-emitted as shell
+ * literals so the result matches the editor's default script style.
+ */
+export function serializeFind(p: {
+  coll: string;
+  filter: string;
+  sort?: string;
+  projection?: string;
+  limit?: number;
+  skip?: number;
+}): string {
+  let out = `${collRef(p.coll)}.find(${jsonToShell(p.filter) || "{}"})`;
+  if (isPresent(p.projection)) out += `\n    .projection(${jsonToShell(p.projection)})`;
+  if (isPresent(p.sort)) out += `\n    .sort(${jsonToShell(p.sort)})`;
+  if (p.skip && p.skip > 0) out += `\n    .skip(${p.skip})`;
+  if (p.limit !== undefined) out += `\n    .limit(${p.limit})`;
+  return out;
+}
+
+/** Merge `{path: value}` into a JSON-string filter, returning shell source. */
+export function mergeFilter(filterJson: string, path: string, value: unknown): string {
+  let obj: Record<string, unknown> = {};
+  const t = (filterJson ?? "").trim();
+  if (t && t !== "{}") {
+    try {
+      const parsed = JSON.parse(t);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) obj = parsed;
+    } catch {
+      /* unparseable filter → start fresh */
+    }
+  }
+  obj[path] = value;
+  return toShellLiteral(obj);
+}
+
+/** Add `{path: value}` to an aggregate's leading `$match` (or prepend one). */
+export function serializeAggregateWithMatch(
+  p: { coll: string; pipeline: string; limit?: number },
+  path: string,
+  value: unknown
+): string {
+  let stages: unknown[] = [];
+  try {
+    const parsed = JSON.parse(p.pipeline || "[]");
+    if (Array.isArray(parsed)) stages = parsed;
+  } catch {
+    /* unparseable pipeline → start fresh */
+  }
+  const first = stages[0] as Record<string, unknown> | undefined;
+  if (first && typeof first === "object" && first.$match && typeof first.$match === "object") {
+    (first.$match as Record<string, unknown>)[path] = value;
+  } else {
+    stages.unshift({ $match: { [path]: value } });
+  }
+  let out = `${collRef(p.coll)}.aggregate(${toShellLiteral(stages)})`;
+  if (p.limit !== undefined) out += `.limit(${p.limit})`;
+  return out;
 }
 
 // ── SQL mode (for users more familiar with SQL) ──────────────────────────────
@@ -260,6 +521,70 @@ export function parseSql(text: string): ParsedQuery {
 /** Parse a query in the given language. */
 export function parse(lang: QueryLang, text: string): ParsedQuery {
   return lang === "sql" ? parseSql(text) : parseQuery(text);
+}
+
+/** Re-emit a parser's JSON-string argument as pretty mongo-shell source. */
+function jsonToShell(json: string | undefined): string {
+  const t = (json ?? "").trim();
+  if (!t) return "";
+  try {
+    return toShellLiteral(JSON.parse(t));
+  } catch {
+    return t;
+  }
+}
+
+/** Pretty-print a mongo query: parse it, then re-serialize with shell literals. */
+function formatMongo(text: string): string {
+  const p = parseQuery(text);
+  if (p.kind === "find") {
+    // serializeFind already re-emits each arg as a shell literal.
+    return serializeFind(p);
+  }
+  if (p.kind === "aggregate") {
+    let out = `${collRef(p.coll)}.aggregate(${jsonToShell(p.pipeline)})`;
+    if (p.limit !== undefined) out += `.limit(${p.limit})`;
+    return out;
+  }
+  const filter = jsonToShell(p.filter);
+  return `${collRef(p.coll)}.countDocuments(${filter === "{}" ? "" : filter})`;
+}
+
+const SQL_KEYWORDS_FMT = [
+  "SELECT", "FROM", "WHERE", "GROUP BY", "HAVING", "ORDER BY", "LIMIT", "OFFSET",
+  "SKIP", "AND", "OR", "ASC", "DESC", "LIKE", "IN", "NOT", "NULL", "AS", "IS",
+  "DISTINCT", "BETWEEN", "ON", "JOIN", "LEFT", "RIGHT", "INNER", "OUTER", "COUNT",
+];
+/** Clauses that start a fresh line. */
+const SQL_CLAUSES = ["FROM", "WHERE", "GROUP BY", "HAVING", "ORDER BY", "LIMIT", "OFFSET", "SKIP"];
+
+/** Pretty-print a SQL query: canonical keyword case + a line per clause. */
+function formatSql(text: string): string {
+  const src = text.trim().replace(/;+\s*$/, "");
+  // Split off quoted strings so keyword casing never touches their contents.
+  const segs = src.split(/('(?:[^']|'')*'|"(?:[^"]|"")*")/);
+  let s = segs
+    .map((seg, i) => {
+      if (i % 2 === 1) return seg; // quoted literal
+      let code = seg.replace(/\s+/g, " ");
+      for (const k of SQL_KEYWORDS_FMT)
+        code = code.replace(new RegExp(`\\b${k.replace(/ /g, "\\s+")}\\b`, "gi"), k);
+      return code;
+    })
+    .join("");
+  for (const c of SQL_CLAUSES)
+    s = s.replace(new RegExp(`\\s+(${c.replace(/ /g, "\\s+")})\\b`, "g"), `\n$1`);
+  s = s.replace(/ +(AND|OR)\b/g, "\n  $1");
+  return s
+    .split("\n")
+    .map((l) => l.trimEnd())
+    .join("\n")
+    .trim();
+}
+
+/** Pretty-print a query in the given language; throws on unparseable mongo. */
+export function formatQuery(lang: QueryLang, text: string): string {
+  return lang === "sql" ? formatSql(text) : formatMongo(text);
 }
 
 /** Default query text for a language + collection. */

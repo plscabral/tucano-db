@@ -1,6 +1,6 @@
 [package]
 name = "tucano-db"
-version = "0.1.0"
+version = "0.2.0"
 description = "Tucano DB — open source MongoDB GUI"
 authors = ["Paulo Cabral"]
 license = "MIT"

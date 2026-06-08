@@ -1,6 +1,13 @@
 import { create } from "zustand";
 import { ipc } from "@/lib/ipc";
-import { parse, defaultQueryFor, type QueryLang } from "@/lib/queryParser";
+import {
+  parse,
+  defaultQueryFor,
+  serializeFind,
+  mergeFilter,
+  serializeAggregateWithMatch,
+  type QueryLang,
+} from "@/lib/queryParser";
 import { useQueryLog } from "@/stores/queryLog";
 import type { ConnColor, FindResult, ViewMode } from "@/lib/types";
 
@@ -65,6 +72,7 @@ type TabsState = {
   setViewMode: (id: string, mode: ViewMode) => void;
   setGridSort: (id: string, field: string) => void;
   applyQuery: (query: string, lang?: QueryLang) => void;
+  addToFilter: (path: string, value: unknown) => void;
   openQuery: (ctx: Ctx, coll: string | null, query: string, lang: QueryLang) => void;
   markSaved: (id: string) => void;
   run: (id: string) => Promise<void>;
@@ -198,6 +206,39 @@ export const useTabs = create<TabsState>((set, get) => ({
   applyQuery(query, lang) {
     const id = get().activeId;
     if (id) get().update(id, { query, ...(lang ? { lang } : {}) });
+  },
+
+  // Inject {path: value} into the active query and re-run it. Right-clicking a
+  // field/cell → "Add to filter" lands here. SQL queries are rewritten to the
+  // equivalent mongo find so the new condition is visible in the editor.
+  addToFilter(path, value) {
+    const id = get().activeId;
+    if (!id) return;
+    const tab = get().tabs.find((t) => t.id === id);
+    if (!tab) return;
+    let parsed;
+    try {
+      parsed = parse(tab.lang, tab.query);
+    } catch {
+      return; // invalid query — leave it untouched
+    }
+    let query: string;
+    if (parsed.kind === "aggregate") {
+      query = serializeAggregateWithMatch(parsed, path, value);
+    } else {
+      // find or count → a find showing the matching documents
+      const filter = mergeFilter(parsed.filter, path, value);
+      query = serializeFind({
+        coll: parsed.coll,
+        filter,
+        sort: parsed.kind === "find" ? parsed.sort : undefined,
+        projection: parsed.kind === "find" ? parsed.projection : undefined,
+        limit: parsed.kind === "find" ? parsed.limit : undefined,
+        skip: parsed.kind === "find" ? parsed.skip : undefined,
+      });
+    }
+    get().update(id, { query, lang: "mongo", page: 1 });
+    get().run(id);
   },
 
   // Open a saved/historical query in its collection — focusing an existing tab

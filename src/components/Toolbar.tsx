@@ -1,21 +1,13 @@
 import { Braces, FileDown, FileStack, ListTree, Plus, RefreshCw, Table2, Timer } from "lucide-react";
-import { save } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useTabs, type Tab } from "@/stores/tabs";
 import { useAutoRefresh, REFRESH_PRESETS } from "@/stores/autorefresh";
 import { useDocActions } from "@/stores/docActions";
-import { ipc } from "@/lib/ipc";
-import { parseQuery } from "@/lib/queryParser";
-import type { ExportFormat, ViewMode } from "@/lib/types";
+import { useExportDialog } from "@/components/ExportDialog";
+import type { ViewMode } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 
@@ -30,37 +22,8 @@ export function Toolbar({ tab }: { tab: Tab }) {
   const setViewMode = useTabs((s) => s.setViewMode);
   const run = useTabs((s) => s.run);
   const openEditor = useDocActions((s) => s.openEditor);
+  const openExport = useExportDialog((s) => s.open);
   const { enabled, intervalMs, setEnabled, setIntervalMs } = useAutoRefresh();
-
-  const doExport = async (format: ExportFormat) => {
-    if (!tab.coll) return;
-    let filter = "{}";
-    let sort = "";
-    try {
-      const parsed = parseQuery(tab.query);
-      if (parsed.kind === "find") {
-        filter = parsed.filter;
-        sort = parsed.sort;
-      }
-    } catch {
-      /* fall back to all docs */
-    }
-    const path = await save({
-      defaultPath: `${tab.coll}.${format}`,
-      filters: [{ name: format.toUpperCase(), extensions: [format] }],
-    });
-    if (!path) return;
-    await ipc.exportDocuments({
-      connId: tab.connId,
-      db: tab.db,
-      coll: tab.coll,
-      filter,
-      sort,
-      limit: 100000,
-      format,
-      path,
-    });
-  };
 
   return (
     <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
@@ -134,22 +97,12 @@ export function Toolbar({ tab }: { tab: Tab }) {
         </PopoverContent>
       </Popover>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            disabled={!tab.coll}
-            title={t("common.export")}
-            className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground disabled:opacity-40"
-          >
-            <FileDown className="h-3.5 w-3.5" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => doExport("json")}>Export JSON</DropdownMenuItem>
-          <DropdownMenuItem onClick={() => doExport("csv")}>Export CSV</DropdownMenuItem>
-          <DropdownMenuItem onClick={() => doExport("xlsx")}>Export XLSX</DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <ToolBtn
+        icon={<FileDown className="h-3.5 w-3.5" />}
+        label={t("common.export")}
+        disabled={!tab.coll}
+        onClick={() => openExport(tab.id)}
+      />
 
       <Divider />
 

@@ -1,10 +1,11 @@
-import { Clipboard, ClipboardCopy, ClipboardList, Copy, Pencil, Trash2 } from "lucide-react";
+import { Clipboard, ClipboardCopy, ClipboardList, Copy, Filter, Pencil, Trash2 } from "lucide-react";
 import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
 } from "@/components/ui/context-menu";
 import { useDocActions, prettyDoc, docLabel, type DocEditMode } from "@/stores/docActions";
+import { useTabs } from "@/stores/tabs";
 import { displayValue, isContainer } from "@/lib/bsonTypes";
 import { useT } from "@/lib/i18n";
 
@@ -81,19 +82,27 @@ export function DocContextMenu({ doc }: { doc: Record<string, unknown> }) {
   );
 }
 
-/** Field/cell context menu: copy options + document actions. */
+/** Field/cell context menu: copy options + add-to-filter + document actions. */
 export function FieldContextMenu({
+  path,
   fieldKey,
   value,
   doc,
 }: {
+  path: string;
   fieldKey: string;
   value: unknown;
   doc: Record<string, unknown>;
 }) {
+  const t = useT();
+  const addToFilter = useTabs((s) => s.addToFilter);
   return (
     <ContextMenuContent className="w-52">
       <FieldCopyItems fieldKey={fieldKey} value={value} />
+      <ContextMenuSeparator />
+      <ContextMenuItem onClick={() => addToFilter(path, value)}>
+        <Filter className="mr-2 h-3.5 w-3.5" /> {t("filter.add")}
+      </ContextMenuItem>
       <ContextMenuSeparator />
       <DocActionItems doc={doc} />
     </ContextMenuContent>

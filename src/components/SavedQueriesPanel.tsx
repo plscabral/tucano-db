@@ -17,6 +17,8 @@ export function SavedQueriesPanel() {
   const openQuery = useTabs((s) => s.openQuery);
   const applyQuery = useTabs((s) => s.applyQuery);
   const connections = useConnections((s) => s.list);
+  const active = useConnections((s) => s.active);
+  const connect = useConnections((s) => s.connect);
   const tab = useActiveTab();
   const [filter, setFilter] = useState("");
 
@@ -27,11 +29,17 @@ export function SavedQueriesPanel() {
     if (tab) openSave(tab.id);
   };
 
-  const load = (s: (typeof list)[number]) => {
+  const load = async (s: (typeof list)[number]) => {
     const connId = s.connId || tab?.connId;
     const conn = connections.find((c) => c.id === connId);
     const db = s.db ?? tab?.db;
     if (connId && db) {
+      // The saved query may target a connection that isn't open yet — opening it
+      // and running immediately would fail with "not connected". Connect first.
+      if (!active.has(connId)) {
+        const ok = await connect(connId);
+        if (!ok) return; // failure surfaced by the connections store
+      }
       openQuery(
         { connId, connName: conn?.name ?? "server", connColor: (conn?.color ?? "teal") as ConnColor, db },
         s.coll,

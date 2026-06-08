@@ -1,8 +1,7 @@
-import { useMemo, useRef, useState } from "react";
+import { memo, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu";
-import { FieldContextMenu } from "@/components/DocActions";
+import { ViewContextMenuProvider, useSetCtxTarget } from "@/components/views/ViewContextMenu";
 import {
   detectBsonType,
   displayValue,
@@ -15,6 +14,7 @@ import {
 import { useSettings } from "@/stores/settings";
 import { useTabs, useActiveTab } from "@/stores/tabs";
 import { formatDate } from "@/lib/format";
+import type { AppSettings } from "@/lib/types";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -23,8 +23,7 @@ const DEFAULT_W = 200;
 const MIN_W = 64;
 const INDEX_W = 52;
 
-function Cell({ value }: { value: unknown }) {
-  const settings = useSettings((s) => s.settings);
+const Cell = memo(function Cell({ value, settings }: { value: unknown; settings: AppSettings }) {
   if (value === undefined) return <span className="text-muted-foreground/30">—</span>;
   const type = detectBsonType(value);
   if (isContainer(value)) {
@@ -40,12 +39,14 @@ function Cell({ value }: { value: unknown }) {
       {text}
     </span>
   );
-}
+});
 
-export function TableView({ docs }: { docs: Record<string, unknown>[] }) {
+function TableGrid({ docs }: { docs: Record<string, unknown>[] }) {
   const parentRef = useRef<HTMLDivElement>(null);
   const tab = useActiveTab();
   const setGridSort = useTabs((s) => s.setGridSort);
+  const settings = useSettings((s) => s.settings);
+  const setTarget = useSetCtxTarget();
   const t = useT();
   const [widths, setWidths] = useState<Record<string, number>>({});
   const width = (c: string) => widths[c] ?? DEFAULT_W;
@@ -66,30 +67,24 @@ export function TableView({ docs }: { docs: Record<string, unknown>[] }) {
     document.addEventListener("mouseup", onUp);
   };
 
-  // Ordered union of top-level keys; _id always first.
-  const columns = useMemo(() => {
+  // Ordered union of top-level keys (_id first) + first-seen BSON type per
+  // column, in a single pass — avoids the O(cols×docs) docs.find() per column.
+  const { columns, columnTypes } = useMemo(() => {
     const seen = new Set<string>();
     const cols: string[] = [];
+    const types: Record<string, ReturnType<typeof detectBsonType>> = {};
     for (const d of docs) {
       for (const k of Object.keys(d)) {
         if (!seen.has(k)) {
           seen.add(k);
           cols.push(k);
         }
+        if (types[k] === undefined && d[k] !== undefined) types[k] = detectBsonType(d[k]);
       }
     }
-    return cols.sort((a, b) => (a === "_id" ? -1 : b === "_id" ? 1 : 0));
+    cols.sort((a, b) => (a === "_id" ? -1 : b === "_id" ? 1 : 0));
+    return { columns: cols, columnTypes: types };
   }, [docs]);
-
-  // Infer each column's BSON type from the first document that has the field.
-  const columnTypes = useMemo(() => {
-    const map: Record<string, ReturnType<typeof detectBsonType>> = {};
-    for (const c of columns) {
-      const sample = docs.find((d) => d[c] !== undefined);
-      if (sample) map[c] = detectBsonType(sample[c]);
-    }
-    return map;
-  }, [columns, docs]);
 
   const rowVirtualizer = useVirtualizer({
     count: docs.length,
@@ -160,14 +155,16 @@ export function TableView({ docs }: { docs: Record<string, unknown>[] }) {
                   {base + vi.index + 1}
                 </div>
                 {columns.map((c) => (
-                  <ContextMenu key={c}>
-                    <ContextMenuTrigger asChild>
-                      <div className="h-full shrink-0 truncate px-3 leading-[32px]" style={{ width: width(c) }}>
-                        <Cell value={doc[c]} />
-                      </div>
-                    </ContextMenuTrigger>
-                    <FieldContextMenu fieldKey={c} value={doc[c]} doc={doc} />
-                  </ContextMenu>
+                  <div
+                    key={c}
+                    className="h-full shrink-0 truncate px-3 leading-[32px]"
+                    style={{ width: width(c) }}
+                    onContextMenu={() =>
+                      setTarget({ kind: "field", path: c, fieldKey: c, value: doc[c], doc })
+                    }
+                  >
+                    <Cell value={doc[c]} settings={settings} />
+                  </div>
                 ))}
               </div>
             );
@@ -175,5 +172,13 @@ export function TableView({ docs }: { docs: Record<string, unknown>[] }) {
         </div>
       </div>
     </div>
+  );
+}
+
+export function TableView({ docs }: { docs: Record<string, unknown>[] }) {
+  return (
+    <ViewContextMenuProvider>
+      <TableGrid docs={docs} />
+    </ViewContextMenuProvider>
   );
 }

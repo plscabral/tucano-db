@@ -63,6 +63,14 @@ function TabsBar() {
           <ContextMenuTrigger asChild>
             <button
               onClick={() => setActive(t.id)}
+              onAuxClick={(e) => {
+                // Middle-click (mouse wheel button) closes the tab.
+                if (e.button === 1) {
+                  e.preventDefault();
+                  closeTab(t.id);
+                }
+              }}
+              onMouseDown={(e) => e.button === 1 && e.preventDefault()}
               className={cn(
                 "group flex h-7 min-w-0 max-w-[200px] shrink-0 items-center gap-1.5 rounded-md px-2 text-[12px]",
                 t.id === activeId ? "tcn-accent-soft text-foreground" : "text-muted-foreground hover:bg-accent"

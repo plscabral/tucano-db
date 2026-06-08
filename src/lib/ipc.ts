@@ -120,6 +120,7 @@ export const ipc = {
     limit: number;
     format: ExportFormat;
     path: string;
+    fields: string[];
   }) => invoke<number>("export_documents", args),
 
   // ── mcp ──────────────────────────────────────────────────────────────────

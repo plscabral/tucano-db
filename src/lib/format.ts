@@ -4,7 +4,21 @@ import type { AppSettings } from "./types";
 
 const pad = (n: number, w = 2) => String(n).padStart(w, "0");
 
-type DateOpts = Pick<AppSettings, "timezone" | "dateMode" | "dateFormat">;
+type DateOpts = Pick<AppSettings, "timezone" | "dateMode" | "dateFormat"> &
+  Partial<Pick<AppSettings, "language">>;
+
+/** BCP-47 locale tag for the app language (used by locale + custom name tokens). */
+function localeTag(lang: AppSettings["language"] | undefined): string | undefined {
+  return lang ?? undefined;
+}
+
+/** Signed timezone offset, e.g. `-03:00` (colon) or `-0300`. */
+function fmtOffset(min: number, colon: boolean): string {
+  const a = Math.abs(min);
+  const sign = min < 0 ? "-" : "+";
+  const hm = `${pad(Math.floor(a / 60))}${colon ? ":" : ""}${pad(a % 60)}`;
+  return `${sign}${hm}`;
+}
 
 /** Offset in minutes for a timezone setting; null means use the local zone. */
 function offsetMinutes(tz: string): number | null {
@@ -51,6 +65,24 @@ function parts(ms: number, tz: string): Parts {
   };
 }
 
+/** Tokens recognized by the custom date format, longest-first for one-pass replace. */
+const DATE_TOKEN = /YYYY|YY|MMMM|MMM|MM|M|DD|D|dddd|ddd|HH|H|hh|h|mm|m|ss|s|SSS|A|a|ZZ|Z/g;
+
+/** Localized month / weekday names for the instant `ms` in the chosen zone. */
+function localeNames(ms: number, tz: string, lang: AppSettings["language"] | undefined) {
+  const off = offsetMinutes(tz);
+  const d = off === null ? new Date(ms) : new Date(ms + off * 60000);
+  const opts: Intl.DateTimeFormatOptions = off === null ? {} : { timeZone: "UTC" };
+  const tag = localeTag(lang);
+  const name = (o: Intl.DateTimeFormatOptions) => d.toLocaleString(tag, { ...opts, ...o });
+  return {
+    MMMM: name({ month: "long" }),
+    MMM: name({ month: "short" }),
+    dddd: name({ weekday: "long" }),
+    ddd: name({ weekday: "short" }),
+  };
+}
+
 /** Format an epoch-ms timestamp honoring the timezone + display mode settings. */
 export function formatDate(ms: number, s: DateOpts): string {
   const p = parts(ms, s.timezone);
@@ -61,19 +93,48 @@ export function formatDate(ms: number, s: DateOpts): string {
 
   if (s.dateMode === "locale") {
     const off = offsetMinutes(s.timezone);
-    if (off === null) return new Date(ms).toLocaleString();
-    return new Date(ms + off * 60000).toLocaleString(undefined, { timeZone: "UTC" });
+    const tag = localeTag(s.language);
+    if (off === null) return new Date(ms).toLocaleString(tag);
+    return new Date(ms + off * 60000).toLocaleString(tag, { timeZone: "UTC" });
   }
 
-  // custom token format
-  return (s.dateFormat || "YYYY-MM-DD HH:mm:ss")
-    .replace(/YYYY/g, String(p.Y))
-    .replace(/MM/g, pad(p.Mo))
-    .replace(/DD/g, pad(p.Da))
-    .replace(/HH/g, pad(p.H))
-    .replace(/mm/g, pad(p.Mi))
-    .replace(/ss/g, pad(p.S))
-    .replace(/SSS/g, pad(p.Ms, 3));
+  // Custom token format. Single pass so substituted names (e.g. a month name
+  // containing token letters) aren't re-replaced; `[literal]` escapes text.
+  const names = localeNames(ms, s.timezone, s.language);
+  const h12 = p.H % 12 || 12;
+  const map: Record<string, string> = {
+    YYYY: String(p.Y),
+    YY: pad(p.Y % 100),
+    MMMM: names.MMMM,
+    MMM: names.MMM,
+    MM: pad(p.Mo),
+    M: String(p.Mo),
+    DD: pad(p.Da),
+    D: String(p.Da),
+    dddd: names.dddd,
+    ddd: names.ddd,
+    HH: pad(p.H),
+    H: String(p.H),
+    hh: pad(h12),
+    h: String(h12),
+    mm: pad(p.Mi),
+    m: String(p.Mi),
+    ss: pad(p.S),
+    s: String(p.S),
+    SSS: pad(p.Ms, 3),
+    A: p.H < 12 ? "AM" : "PM",
+    a: p.H < 12 ? "am" : "pm",
+    ZZ: fmtOffset(p.off, false),
+    Z: fmtOffset(p.off, true),
+  };
+  return (s.dateFormat || "DD/MM/YYYY HH:mm:ss")
+    .split(/(\[[^\]]*\])/)
+    .map((seg) =>
+      seg.startsWith("[") && seg.endsWith("]")
+        ? seg.slice(1, -1)
+        : seg.replace(DATE_TOKEN, (tok) => map[tok] ?? tok)
+    )
+    .join("");
 }
 
 /** Relative "time ago" for history timestamps. */

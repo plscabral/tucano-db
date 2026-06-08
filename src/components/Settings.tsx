@@ -23,6 +23,7 @@ import { useTheme, setTheme, type ThemeMode } from "@/stores/theme";
 import { useUpdater } from "@/stores/updater";
 import { ipc } from "@/lib/ipc";
 import { useT, useI18n } from "@/lib/i18n";
+import { formatDate } from "@/lib/format";
 import { TYPE_COLOR, TYPE_LABEL, type BsonType } from "@/lib/bsonTypes";
 import { LogoMark } from "@/components/Logo";
 import type { DateMode, ExportFormat, Language, McpSettings } from "@/lib/types";
@@ -322,8 +323,38 @@ function DataTab() {
         </div>
       </Row>
       {settings.dateMode === "custom" && (
-        <Row title="Custom format" hint="Tokens: YYYY MM DD HH mm ss SSS">
-          <TextInput value={settings.dateFormat} onChange={(v) => update({ dateFormat: v })} className="w-44" />
+        <Row title={t("set.customFormat")} hint={t("set.customFormatHint")}>
+          <div className="flex w-64 flex-col gap-1.5">
+            <TextInput
+              value={settings.dateFormat}
+              onChange={(v) => update({ dateFormat: v })}
+              placeholder="DD/MM/YYYY HH:mm:ss"
+            />
+            <div className="mono truncate rounded-md bg-muted px-2 py-1 text-[11px] text-tucano-600 dark:text-tucano-300">
+              {formatDate(Date.now(), settings)}
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {[
+                "DD/MM/YYYY HH:mm:ss",
+                "DD [de] MMMM [de] YYYY",
+                "ddd, DD MMM YYYY hh:mm A",
+                "YYYY-MM-DD HH:mm",
+              ].map((f) => (
+                <button
+                  key={f}
+                  onClick={() => update({ dateFormat: f })}
+                  className={cn(
+                    "mono rounded border px-1.5 py-0.5 text-[10px] transition",
+                    settings.dateFormat === f
+                      ? "border-tucano-400/60 text-tucano-600 dark:text-tucano-300"
+                      : "border-input text-muted-foreground hover:border-tucano-400/60 hover:text-foreground"
+                  )}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+          </div>
         </Row>
       )}
       <Row title={t("set.pageSize")}>
