@@ -377,6 +377,9 @@ function DataTab() {
       <Row title={t("set.recordUpdates")}>
         <Toggle checked={settings.recordUpdates} onChange={(v) => update({ recordUpdates: v })} />
       </Row>
+      <Row title="Record document inserts" hint="Keep inserted documents in history so they can be undone.">
+        <Toggle checked={settings.recordInserts} onChange={(v) => update({ recordInserts: v })} />
+      </Row>
       <Row title={t("set.exportFormat")}>
         <div className="relative w-32">
           <select

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { ipc } from "@/lib/ipc";
-import type { ConnColor, Connection } from "@/lib/types";
+import type { ConnColor, Connection, Environment } from "@/lib/types";
 
 type ConnState = {
   list: Connection[];
@@ -8,8 +8,8 @@ type ConnState = {
   busyId: string | null;
   error: string | null;
   load: () => Promise<void>;
-  add: (name: string, uri: string, color: ConnColor) => Promise<Connection>;
-  update: (id: string, name: string, uri: string, color: ConnColor) => Promise<void>;
+  add: (name: string, uri: string, color: ConnColor, environment: Environment, readOnly: boolean) => Promise<Connection>;
+  update: (id: string, name: string, uri: string, color: ConnColor, environment: Environment, readOnly: boolean) => Promise<void>;
   setVisibleDbs: (id: string, dbs: string[]) => Promise<void>;
   remove: (id: string) => Promise<void>;
   connect: (id: string) => Promise<boolean>;
@@ -30,14 +30,14 @@ export const useConnections = create<ConnState>((set, get) => ({
     set({ list, active: new Set(active) });
   },
 
-  async add(name, uri, color) {
-    const conn = await ipc.addConnection(name, uri, color);
+  async add(name, uri, color, environment, readOnly) {
+    const conn = await ipc.addConnection(name, uri, color, environment, readOnly);
     set({ list: [...get().list, conn] });
     return conn;
   },
 
-  async update(id, name, uri, color) {
-    const updated = await ipc.updateConnection(id, name, uri, color);
+  async update(id, name, uri, color, environment, readOnly) {
+    const updated = await ipc.updateConnection(id, name, uri, color, environment, readOnly);
     set({ list: get().list.map((c) => (c.id === id ? updated : c)) });
   },
 

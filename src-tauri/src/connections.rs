@@ -110,6 +110,8 @@ pub fn add_connection(
     name: String,
     uri: String,
     color: String,
+    environment: String,
+    read_only: bool,
 ) -> Connection {
     let conn = Connection {
         id: uuid::Uuid::new_v4().to_string(),
@@ -119,6 +121,8 @@ pub fn add_connection(
         created_at: now_ms(),
         last_connected: None,
         visible_dbs: Vec::new(),
+        environment: normalize_environment(environment),
+        read_only,
     };
     state.saved.lock().push(conn.clone());
     state.persist_connections();
@@ -132,6 +136,8 @@ pub fn update_connection(
     name: String,
     uri: String,
     color: String,
+    environment: String,
+    read_only: bool,
 ) -> R<Connection> {
     let mut saved = state.saved.lock();
     let conn = saved
@@ -141,10 +147,19 @@ pub fn update_connection(
     conn.name = name;
     conn.uri = uri;
     conn.color = color;
+    conn.environment = normalize_environment(environment);
+    conn.read_only = read_only;
     let out = conn.clone();
     drop(saved);
     state.persist_connections();
     Ok(out)
+}
+
+fn normalize_environment(environment: String) -> String {
+    match environment.as_str() {
+        "development" | "staging" | "production" => environment,
+        _ => "development".into(),
+    }
 }
 
 /// Choose which databases are shown in the sidebar (empty = all).

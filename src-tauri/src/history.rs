@@ -206,6 +206,7 @@ pub async fn restore_history_entry(
     id: String,
 ) -> Result<(), String> {
     let entry = get(state.inner(), &id)?.ok_or("backup entry not found")?;
+    state.ensure_write_allowed(&entry.conn_id)?;
     let client = state.client(&entry.conn_id)?;
     let coll = client
         .database(&entry.db)

@@ -8,6 +8,7 @@ export type ActionKind =
   | "dropDb"
   | "createDb"
   | "indexes"
+  | "schema"
   | "history";
 
 export type CollAction = {

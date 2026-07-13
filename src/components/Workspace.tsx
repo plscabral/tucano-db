@@ -14,6 +14,7 @@ import { Pagination } from "@/components/Pagination";
 import { TreeView } from "@/components/views/TreeView";
 import { TableView } from "@/components/views/TableView";
 import { JsonView } from "@/components/views/JsonView";
+import { HtmlView } from "@/components/views/HtmlView";
 import { Display } from "@/components/Display";
 import { LogoMark } from "@/components/Logo";
 import { useTabs, useActiveTab, type Tab } from "@/stores/tabs";
@@ -148,6 +149,7 @@ function ResultArea({ tab }: { tab: Tab }) {
           {tab.viewMode === "tree" && <TreeView docs={docs} />}
           {tab.viewMode === "table" && <TableView docs={docs} />}
           {tab.viewMode === "json" && <JsonView docs={docs} />}
+          {tab.viewMode === "html" && <HtmlView docs={docs} />}
         </div>
       )}
     </div>

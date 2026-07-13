@@ -185,6 +185,29 @@ export const TYPE_COLOR: Record<BsonType, string> = {
   symbol: "text-fuchsia-500",
 };
 
+/** Background + foreground colors for compact BSON-type badges. */
+export const TYPE_BADGE_COLOR: Record<BsonType, string> = {
+  objectId: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+  string: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+  int: "bg-sky-500/15 text-sky-700 dark:text-sky-300",
+  long: "bg-sky-500/15 text-sky-700 dark:text-sky-300",
+  double: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300",
+  decimal: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300",
+  bool: "bg-violet-500/15 text-violet-700 dark:text-violet-300",
+  date: "bg-rose-500/15 text-rose-700 dark:text-rose-300",
+  null: "bg-slate-500/15 text-slate-600 dark:text-slate-300",
+  array: "bg-tucano-400/15 text-tucano-700 dark:text-tucano-300",
+  object: "bg-foreground/10 text-foreground/70",
+  binary: "bg-orange-500/15 text-orange-700 dark:text-orange-300",
+  regex: "bg-pink-500/15 text-pink-700 dark:text-pink-300",
+  timestamp: "bg-rose-500/15 text-rose-700 dark:text-rose-300",
+  minKey: "bg-slate-500/15 text-slate-600 dark:text-slate-300",
+  maxKey: "bg-slate-500/15 text-slate-600 dark:text-slate-300",
+  undefined: "bg-slate-500/15 text-slate-600 dark:text-slate-300",
+  javascript: "bg-yellow-500/15 text-yellow-700 dark:text-yellow-300",
+  symbol: "bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-300",
+};
+
 export const TYPE_LABEL: Record<BsonType, string> = {
   objectId: "ObjectId",
   string: "String",

@@ -366,6 +366,21 @@ export const useTabs = create<TabsState>((set, get) => ({
           isAggregate: true,
           loading: false,
         });
+      } else if (parsed.kind === "distinct") {
+        const started = performance.now();
+        const values = await ipc.distinct(tab.connId, tab.db, parsed.coll, parsed.field, parsed.filter);
+        get().update(id, {
+          result: {
+            docs: values.map((value) => ({ value })),
+            filteredCount: values.length,
+            totalCount: values.length,
+            page: 1,
+            pageSize: values.length || 1,
+            elapsedMs: Math.round(performance.now() - started),
+          },
+          isAggregate: true,
+          loading: false,
+        });
       } else {
         // count → reuse find's filteredCount
         const res = await ipc.findDocuments({

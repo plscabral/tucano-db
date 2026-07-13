@@ -52,6 +52,10 @@ pub fn spawn(state: Arc<AppState>, port: u16, token: String) {
             .route("/databases", get(databases))
             .route("/collections", get(collections))
             .route("/find", get(find))
+            .route("/aggregate", get(aggregate))
+            .route("/indexes", get(indexes))
+            .route("/schema", get(schema))
+            .route("/explain", get(explain))
             .route("/overview", get(overview))
             .with_state(ctx);
 
@@ -172,6 +176,82 @@ async fn find(State(ctx): State<Ctx>, headers: HeaderMap, Query(q): Query<FindQ>
         .map(|d| Bson::Document(d).into_relaxed_extjson())
         .collect();
     Ok(Json(json!({ "documents": values })))
+}
+
+fn json_document(raw: Option<&str>, label: &str) -> Result<Document, (StatusCode, String)> {
+    match raw.filter(|value| !value.trim().is_empty()) {
+        Some(value) => match Bson::try_from(serde_json::from_str::<Value>(value).map_err(|e| (StatusCode::BAD_REQUEST, format!("bad {label}: {e}")))?).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))? {
+            Bson::Document(doc) => Ok(doc),
+            _ => Err((StatusCode::BAD_REQUEST, format!("{label} must be a JSON object"))),
+        },
+        None => Ok(Document::new()),
+    }
+}
+
+#[derive(Deserialize)]
+struct CollectionQ { conn: String, db: String, coll: String }
+
+#[derive(Deserialize)]
+struct AggregateQ { conn: String, db: String, coll: String, pipeline: String, limit: Option<i64> }
+
+async fn aggregate(State(ctx): State<Ctx>, headers: HeaderMap, Query(q): Query<AggregateQ>) -> Resp<Value> {
+    auth(&headers, &ctx.token)?;
+    let pipeline: Value = serde_json::from_str(&q.pipeline).map_err(|e| (StatusCode::BAD_REQUEST, format!("bad pipeline: {e}")))?;
+    let stages = match Bson::try_from(pipeline).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))? {
+        Bson::Array(values) => values.into_iter().map(|value| match value { Bson::Document(doc) => Ok(doc), _ => Err((StatusCode::BAD_REQUEST, "pipeline stages must be objects".into())) }).collect::<Result<Vec<_>, _>>()?,
+        _ => return Err((StatusCode::BAD_REQUEST, "pipeline must be a JSON array".into())),
+    };
+    let client = ctx.state.client(&q.conn).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    let cursor = client.database(&q.db).collection::<Document>(&q.coll).aggregate(stages).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let docs: Vec<Value> = cursor.try_collect::<Vec<Document>>().await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?.into_iter().take(q.limit.unwrap_or(100).clamp(1, 500) as usize).map(|doc| Bson::Document(doc).into_relaxed_extjson()).collect();
+    Ok(Json(json!({ "documents": docs })))
+}
+
+async fn indexes(State(ctx): State<Ctx>, headers: HeaderMap, Query(q): Query<CollectionQ>) -> Resp<Value> {
+    auth(&headers, &ctx.token)?;
+    let client = ctx.state.client(&q.conn).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    let docs = client.database(&q.db).collection::<Document>(&q.coll).list_indexes().await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?.try_collect::<Vec<_>>().await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let values: Vec<Value> = docs
+        .into_iter()
+        .filter_map(|index| serde_json::to_value(index).ok())
+        .collect();
+    Ok(Json(json!({ "indexes": values })))
+}
+
+#[derive(Deserialize)]
+struct SchemaQ {
+    conn: String,
+    db: String,
+    coll: String,
+    sample: Option<u32>,
+}
+
+/// Read-only schema report, including field coverage, representative values
+/// and indexes that can serve each field.
+async fn schema(State(ctx): State<Ctx>, headers: HeaderMap, Query(q): Query<SchemaQ>) -> Resp<Value> {
+    auth(&headers, &ctx.token)?;
+    let client = ctx
+        .state
+        .client(&q.conn)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    let collection = client.database(&q.db).collection::<Document>(&q.coll);
+    let report = crate::schema::analyze_collection(&collection, q.sample.unwrap_or(100))
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    let value = serde_json::to_value(report)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(value))
+}
+
+#[derive(Deserialize)]
+struct ExplainQ { conn: String, db: String, coll: String, filter: Option<String> }
+
+async fn explain(State(ctx): State<Ctx>, headers: HeaderMap, Query(q): Query<ExplainQ>) -> Resp<Value> {
+    auth(&headers, &ctx.token)?;
+    let client = ctx.state.client(&q.conn).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    let filter = json_document(q.filter.as_deref(), "filter")?;
+    let result = client.database(&q.db).run_command(bson::doc! { "explain": { "find": &q.coll, "filter": filter }, "verbosity": "executionStats" }).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(Bson::Document(result).into_relaxed_extjson()))
 }
 
 async fn overview(State(ctx): State<Ctx>, headers: HeaderMap, Query(q): Query<ConnQ>) -> Resp<Value> {

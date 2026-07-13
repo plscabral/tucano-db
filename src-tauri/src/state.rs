@@ -20,6 +20,16 @@ pub struct Connection {
     /// Databases the user chose to show in the sidebar. Empty = show all.
     #[serde(default)]
     pub visible_dbs: Vec<String>,
+    /// Human-readable risk profile. Existing saved connections remain development.
+    #[serde(default = "default_environment")]
+    pub environment: String,
+    /// Blocks every database mutation for this saved connection.
+    #[serde(default)]
+    pub read_only: bool,
+}
+
+fn default_environment() -> String {
+    "development".into()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,6 +49,8 @@ pub struct AppSettings {
     pub initial_script: String,
     /// Record document updates/replaces to collection history (for restore).
     pub record_updates: bool,
+    /// Record inserted documents so they can be undone from collection history.
+    pub record_inserts: bool,
     /// Record document deletions to collection history (for restore).
     pub record_deletes: bool,
 }
@@ -55,6 +67,7 @@ impl Default for AppSettings {
             auto_execute: true,
             initial_script: String::new(),
             record_updates: true,
+            record_inserts: true,
             record_deletes: true,
         }
     }
@@ -145,6 +158,23 @@ impl AppState {
             .get(conn_id)
             .cloned()
             .ok_or_else(|| "not connected".to_string())
+    }
+
+    /// Enforce the connection safety policy at the command boundary. UI controls
+    /// are helpful, but they are not a security boundary for IPC callers.
+    pub fn ensure_write_allowed(&self, conn_id: &str) -> Result<(), String> {
+        let saved = self.saved.lock();
+        let conn = saved
+            .iter()
+            .find(|connection| connection.id == conn_id)
+            .ok_or_else(|| "connection not found".to_string())?;
+        if conn.read_only {
+            return Err(format!(
+                "writes are disabled for the {} connection \"{}\"",
+                conn.environment, conn.name
+            ));
+        }
+        Ok(())
     }
 }
 

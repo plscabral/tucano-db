@@ -43,7 +43,13 @@ export interface Connection {
   lastConnected: number | null;
   /** Databases shown in the sidebar. Empty = show all. */
   visibleDbs: string[];
+  /** Development, staging or production. Defaults to development for saved connections. */
+  environment: Environment;
+  /** Prevent all database mutations for this connection. */
+  readOnly: boolean;
 }
+
+export type Environment = "development" | "staging" | "production";
 
 export interface DatabaseInfo {
   name: string;
@@ -79,10 +85,27 @@ export interface IndexInfo {
   sparse: boolean;
 }
 
-/** A field path + the BSON types observed for it across sampled docs. */
+/** A field path + the BSON types and representative values observed in a sample. */
 export interface FieldSchema {
   path: string;
   types: string[];
+  present: number;
+  sampleValues: unknown[];
+  indexNames: string[];
+}
+
+export interface SchemaIndex {
+  name: string;
+  keys: Record<string, unknown>;
+  unique: boolean;
+  sparse: boolean;
+}
+
+/** Read-only collection schema report built from sampled documents and indexes. */
+export interface SchemaAnalysis {
+  sampledDocuments: number;
+  fields: FieldSchema[];
+  indexes: SchemaIndex[];
 }
 
 export interface ServerOverview {
@@ -134,6 +157,8 @@ export interface AppSettings {
   initialScript: string;
   /** Record updates/deletes to collection history for restore. */
   recordUpdates: boolean;
+  /** Record inserts so they can be undone from collection history. */
+  recordInserts: boolean;
   recordDeletes: boolean;
 }
 
@@ -144,7 +169,7 @@ export interface McpSettings {
 }
 
 /** Document view modes in the workspace. */
-export type ViewMode = "tree" | "table" | "json";
+export type ViewMode = "tree" | "table" | "json" | "html";
 
 /** A query describing what find_documents should fetch. */
 export interface DocQuery {

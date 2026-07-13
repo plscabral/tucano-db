@@ -12,6 +12,7 @@ import type {
   IndexInfo,
   McpSettings,
   ServerOverview,
+  SchemaAnalysis,
 } from "./types";
 
 /** Centralized Tauri command wrapper — one method per backend #[tauri::command]. */
@@ -19,10 +20,10 @@ export const ipc = {
   // ── connections ──────────────────────────────────────────────────────────
   listConnections: () => invoke<Connection[]>("list_connections"),
   activeConnections: () => invoke<string[]>("active_connections"),
-  addConnection: (name: string, uri: string, color: ConnColor) =>
-    invoke<Connection>("add_connection", { name, uri, color }),
-  updateConnection: (id: string, name: string, uri: string, color: ConnColor) =>
-    invoke<Connection>("update_connection", { id, name, uri, color }),
+  addConnection: (name: string, uri: string, color: ConnColor, environment: Connection["environment"], readOnly: boolean) =>
+    invoke<Connection>("add_connection", { name, uri, color, environment, readOnly }),
+  updateConnection: (id: string, name: string, uri: string, color: ConnColor, environment: Connection["environment"], readOnly: boolean) =>
+    invoke<Connection>("update_connection", { id, name, uri, color, environment, readOnly }),
   setVisibleDatabases: (id: string, dbs: string[]) =>
     invoke<void>("set_visible_databases", { id, dbs }),
   removeConnection: (id: string) => invoke<void>("remove_connection", { id }),
@@ -55,6 +56,8 @@ export const ipc = {
     pipeline: string;
     limit: number;
   }) => invoke<Record<string, unknown>[]>("aggregate", args),
+  distinct: (connId: string, db: string, coll: string, field: string, filter: string) =>
+    invoke<unknown[]>("distinct", { connId, db, coll, field, filter }),
   insertDocument: (connId: string, db: string, coll: string, docJson: string) =>
     invoke<Record<string, unknown>>("insert_document", { connId, db, coll, docJson }),
   updateDocument: (connId: string, db: string, coll: string, docJson: string) =>
@@ -89,6 +92,8 @@ export const ipc = {
   // ── schema / autocomplete ──────────────────────────────────────────────────
   sampleFields: (connId: string, db: string, coll: string, sample: number) =>
     invoke<FieldSchema[]>("sample_fields", { connId, db, coll, sample }),
+  analyzeSchema: (connId: string, db: string, coll: string, sample = 100) =>
+    invoke<SchemaAnalysis>("analyze_schema", { connId, db, coll, sample }),
 
   // ── overview ─────────────────────────────────────────────────────────────
   serverOverview: (connId: string) =>

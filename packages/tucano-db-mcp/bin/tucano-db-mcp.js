@@ -66,6 +66,39 @@ const TOOLS = [
     handler: (a) => bridge("/find", a),
   },
   {
+    name: "aggregate",
+    description: "Run a read-only MongoDB aggregation pipeline. pipeline is a JSON array.",
+    inputSchema: { type: "object", properties: { conn: { type: "string" }, db: { type: "string" }, coll: { type: "string" }, pipeline: { type: "string" }, limit: { type: "number" } }, required: ["conn", "db", "coll", "pipeline"] },
+    handler: (a) => bridge("/aggregate", a),
+  },
+  {
+    name: "list_indexes",
+    description: "List indexes for a collection.",
+    inputSchema: { type: "object", properties: { conn: { type: "string" }, db: { type: "string" }, coll: { type: "string" } }, required: ["conn", "db", "coll"] },
+    handler: (a) => bridge("/indexes", a),
+  },
+  {
+    name: "analyze_schema",
+    description: "Analyze sampled documents and indexes for a collection. Returns field types, coverage, representative values, and index coverage. Read-only.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        conn: { type: "string" },
+        db: { type: "string" },
+        coll: { type: "string" },
+        sample: { type: "number", description: "documents to sample, from 1 to 500; defaults to 100" },
+      },
+      required: ["conn", "db", "coll"],
+    },
+    handler: (a) => bridge("/schema", a),
+  },
+  {
+    name: "explain",
+    description: "Return MongoDB execution statistics for a read-only find filter.",
+    inputSchema: { type: "object", properties: { conn: { type: "string" }, db: { type: "string" }, coll: { type: "string" }, filter: { type: "string" } }, required: ["conn", "db", "coll"] },
+    handler: (a) => bridge("/explain", a),
+  },
+  {
     name: "overview",
     description: "Get serverStatus analytics for a connection.",
     inputSchema: {

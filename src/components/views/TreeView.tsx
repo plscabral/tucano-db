@@ -8,6 +8,7 @@ import {
   isContainer,
   objectIdDate,
   TYPE_COLOR,
+  TYPE_BADGE_COLOR,
   TYPE_LABEL,
 } from "@/lib/bsonTypes";
 import { useSettings } from "@/stores/settings";
@@ -89,7 +90,7 @@ const FieldNode = memo(function FieldNode({
         ) : (
           <Scalar value={value} settings={settings} />
         )}
-        <span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+        <span className={cn("ml-auto rounded px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide", TYPE_BADGE_COLOR[type])}>
           {TYPE_LABEL[type]}
         </span>
       </div>

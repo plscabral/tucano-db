@@ -13,6 +13,7 @@ const DEFAULTS: AppSettings = {
   autoExecute: true,
   initialScript: "",
   recordUpdates: true,
+  recordInserts: true,
   recordDeletes: true,
 };
 

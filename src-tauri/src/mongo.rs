@@ -252,6 +252,33 @@ pub async fn aggregate(
         .collect())
 }
 
+/// Return the unique values for one field, optionally constrained by a filter.
+/// Values stay in canonical Extended JSON so ObjectIds, dates and decimals are
+/// rendered with the same fidelity as normal document results.
+#[tauri::command]
+pub async fn distinct(
+    state: State<'_, Arc<AppState>>,
+    conn_id: String,
+    db: String,
+    coll: String,
+    field: String,
+    filter: String,
+) -> R<Vec<Value>> {
+    let field = field.trim();
+    if field.is_empty() {
+        return Err("distinct field cannot be empty".into());
+    }
+    let client = state.client(&conn_id)?;
+    let values = coll_of(&client, &db, &coll)
+        .distinct(field, parse_doc(&filter)?)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(values
+        .into_iter()
+        .map(Bson::into_canonical_extjson)
+        .collect())
+}
+
 // ── Write documents (history-backed) ────────────────────────────────────────
 
 #[tauri::command]
@@ -262,12 +289,24 @@ pub async fn insert_document(
     coll: String,
     doc_json: String,
 ) -> R<Value> {
+    state.ensure_write_allowed(&conn_id)?;
     let client = state.client(&conn_id)?;
     let c = coll_of(&client, &db, &coll);
     let document = parse_doc(&doc_json)?;
     let res = c.insert_one(document.clone()).await.map_err(|e| e.to_string())?;
     let mut stored = document;
     stored.insert("_id", res.inserted_id.clone());
+    if state.settings.lock().record_inserts {
+        history::record(
+            state.inner(),
+            &conn_id,
+            &db,
+            &coll,
+            "insert",
+            None,
+            serde_json::to_string(&doc_to_value(stored.clone())).ok(),
+        );
+    }
     Ok(doc_to_value(stored))
 }
 
@@ -279,6 +318,7 @@ pub async fn update_document(
     coll: String,
     doc_json: String,
 ) -> R<()> {
+    state.ensure_write_allowed(&conn_id)?;
     let client = state.client(&conn_id)?;
     let c = coll_of(&client, &db, &coll);
     let document = parse_doc(&doc_json)?;
@@ -304,6 +344,7 @@ pub async fn delete_document(
     coll: String,
     id_json: String,
 ) -> R<()> {
+    state.ensure_write_allowed(&conn_id)?;
     let client = state.client(&conn_id)?;
     let c = coll_of(&client, &db, &coll);
     let id = parse_bson(&id_json)?;
@@ -327,6 +368,7 @@ pub async fn delete_many(
     coll: String,
     filter: String,
 ) -> R<u64> {
+    state.ensure_write_allowed(&conn_id)?;
     let client = state.client(&conn_id)?;
     let c = coll_of(&client, &db, &coll);
     let filter_doc = parse_doc(&filter)?;
@@ -353,6 +395,7 @@ pub async fn create_collection(
     db: String,
     name: String,
 ) -> R<()> {
+    state.ensure_write_allowed(&conn_id)?;
     let client = state.client(&conn_id)?;
     client.database(&db).create_collection(&name).await.map_err(|e| e.to_string())
 }
@@ -364,6 +407,7 @@ pub async fn drop_collection(
     db: String,
     coll: String,
 ) -> R<()> {
+    state.ensure_write_allowed(&conn_id)?;
     let client = state.client(&conn_id)?;
     coll_of(&client, &db, &coll).drop().await.map_err(|e| e.to_string())
 }
@@ -376,6 +420,7 @@ pub async fn rename_collection(
     coll: String,
     new_name: String,
 ) -> R<()> {
+    state.ensure_write_allowed(&conn_id)?;
     let client = state.client(&conn_id)?;
     client
         .database("admin")
@@ -398,6 +443,7 @@ pub async fn duplicate_collection(
     coll: String,
     new_name: String,
 ) -> R<()> {
+    state.ensure_write_allowed(&conn_id)?;
     let client = state.client(&conn_id)?;
     let c = coll_of(&client, &db, &coll);
     c.aggregate(vec![doc! { "$match": {} }, doc! { "$out": new_name }])
@@ -411,6 +457,7 @@ pub async fn duplicate_collection(
 
 #[tauri::command]
 pub async fn drop_database(state: State<'_, Arc<AppState>>, conn_id: String, db: String) -> R<()> {
+    state.ensure_write_allowed(&conn_id)?;
     let client = state.client(&conn_id)?;
     client.database(&db).drop().await.map_err(|e| e.to_string())
 }
@@ -422,6 +469,7 @@ pub async fn create_database(
     db: String,
     first_collection: String,
 ) -> R<()> {
+    state.ensure_write_allowed(&conn_id)?;
     let client = state.client(&conn_id)?;
     client
         .database(&db)
@@ -477,6 +525,7 @@ pub async fn create_index(
     keys: String,
     unique: bool,
 ) -> R<()> {
+    state.ensure_write_allowed(&conn_id)?;
     let client = state.client(&conn_id)?;
     let c = coll_of(&client, &db, &coll);
     let keys_doc = parse_doc(&keys)?;
@@ -496,6 +545,7 @@ pub async fn drop_index(
     coll: String,
     name: String,
 ) -> R<()> {
+    state.ensure_write_allowed(&conn_id)?;
     let client = state.client(&conn_id)?;
     coll_of(&client, &db, &coll).drop_index(name).await.map_err(|e| e.to_string())
 }

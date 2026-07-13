@@ -1,4 +1,4 @@
-import { Braces, FileDown, FileStack, ListTree, Plus, RefreshCw, Table2, Timer } from "lucide-react";
+import { Braces, FileDown, FileStack, FileText, ListTree, Plus, RefreshCw, Table2, Timer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -15,6 +15,7 @@ const VIEWS: { mode: ViewMode; icon: typeof ListTree; key: string }[] = [
   { mode: "tree", icon: ListTree, key: "view.tree" },
   { mode: "table", icon: Table2, key: "view.table" },
   { mode: "json", icon: Braces, key: "view.json" },
+  { mode: "html", icon: FileText, key: "view.html" },
 ];
 
 export function Toolbar({ tab }: { tab: Tab }) {

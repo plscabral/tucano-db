@@ -19,7 +19,8 @@ export type ParsedQuery =
       skip?: number;
     }
   | { kind: "aggregate"; coll: string; pipeline: string; limit?: number }
-  | { kind: "count"; coll: string; filter: string };
+  | { kind: "count"; coll: string; filter: string }
+  | { kind: "distinct"; coll: string; field: string; filter: string };
 
 /**
  * Rewrite JS regex literals (`/pattern/flags`) into the canonical Extended JSON
@@ -332,13 +333,23 @@ export function parseQuery(text: string): ParsedQuery {
     return { kind: "aggregate", coll, pipeline: toJson(first.args), limit };
   }
 
+  if (first.name === "distinct") {
+    const parts = splitTopArgs(first.args);
+    if (!parts[0]) throw new Error("distinct() needs a field name, for example distinct(\"status\")");
+    const field = JSON5.parse(parts[0]);
+    if (typeof field !== "string" || !field.trim()) {
+      throw new Error("distinct() field must be a non-empty string");
+    }
+    return { kind: "distinct", coll, field, filter: parts[1] ? toJson(parts[1]) : "{}" };
+  }
+
   if (first.name === "count" || first.name === "countDocuments" || first.name === "estimatedDocumentCount") {
     const parts = splitTopArgs(first.args);
     return { kind: "count", coll, filter: parts[0] ? toJson(parts[0]) : "{}" };
   }
 
   throw new Error(
-    `.${first.name}() can't run yet — the runner supports find, findOne, aggregate, count and countDocuments.`
+    `.${first.name}() can't run yet — the runner supports find, findOne, aggregate, distinct, count and countDocuments.`
   );
 }
 
@@ -545,6 +556,10 @@ function formatMongo(text: string): string {
     let out = `${collRef(p.coll)}.aggregate(${jsonToShell(p.pipeline)})`;
     if (p.limit !== undefined) out += `.limit(${p.limit})`;
     return out;
+  }
+  if (p.kind === "distinct") {
+    const filter = jsonToShell(p.filter);
+    return `${collRef(p.coll)}.distinct(${JSON.stringify(p.field)}${filter === "{}" ? "" : `, ${filter}`})`;
   }
   const filter = jsonToShell(p.filter);
   return `${collRef(p.coll)}.countDocuments(${filter === "{}" ? "" : filter})`;

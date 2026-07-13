@@ -459,6 +459,9 @@ function CollMenuItems({
       <ItemEl onClick={() => openAction(action("indexes"))}>
         <KeyRound className="mr-2 h-3.5 w-3.5" /> {t("sb.indexes")}
       </ItemEl>
+      <ItemEl onClick={() => openAction(action("schema"))}>
+        <ListChecks className="mr-2 h-3.5 w-3.5" /> {t("sb.schema")}
+      </ItemEl>
       <ItemEl onClick={() => openAction(action("history"))}>
         <History className="mr-2 h-3.5 w-3.5" /> {t("history.title")}
       </ItemEl>

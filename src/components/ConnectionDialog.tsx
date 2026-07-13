@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, Loader2, Plug } from "lucide-react";
+import { Check, Loader2, Plug, ShieldCheck } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -10,11 +10,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { ipc } from "@/lib/ipc";
 import { useConnections } from "@/stores/connections";
 import { useConnDialog } from "@/stores/connDialog";
-import { CONN_COLORS, CONN_COLOR_HEX, type ConnColor } from "@/lib/types";
+import { CONN_COLORS, CONN_COLOR_HEX, type ConnColor, type Environment } from "@/lib/types";
 import { useT } from "@/lib/i18n";
 
 type TestState = { kind: "idle" | "testing" | "ok" | "err"; msg?: string };
@@ -30,6 +31,8 @@ export function ConnectionDialog() {
   const [name, setName] = useState("");
   const [uri, setUri] = useState("");
   const [color, setColor] = useState<ConnColor>("teal");
+  const [environment, setEnvironment] = useState<Environment>("development");
+  const [readOnly, setReadOnly] = useState(false);
   const [test, setTest] = useState<TestState>({ kind: "idle" });
 
   useEffect(() => {
@@ -37,6 +40,8 @@ export function ConnectionDialog() {
       setName(editing?.name ?? "");
       setUri(editing?.uri ?? "mongodb://localhost:27017");
       setColor(editing?.color ?? "teal");
+      setEnvironment(editing?.environment ?? "development");
+      setReadOnly(editing?.readOnly ?? false);
       setTest({ kind: "idle" });
     }
   }, [open, editing]);
@@ -54,8 +59,8 @@ export function ConnectionDialog() {
   const save = async () => {
     if (!uri.trim()) return;
     const label = name.trim() || uri.replace(/^mongodb(\+srv)?:\/\//, "").split("/")[0];
-    if (editing) await update(editing.id, label, uri, color);
-    else await add(label, uri, color);
+    if (editing) await update(editing.id, label, uri, color, environment, readOnly);
+    else await add(label, uri, color, environment, readOnly);
     onClose();
   };
 
@@ -73,6 +78,30 @@ export function ConnectionDialog() {
           <div className="space-y-1.5">
             <Label>{t("conn.name")}</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Local" />
+          </div>
+
+          <div className="grid grid-cols-[1fr_auto] items-end gap-4 rounded-xl border border-border bg-muted/30 p-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="environment">Environment</Label>
+              <select
+                id="environment"
+                value={environment}
+                onChange={(e) => setEnvironment(e.currentTarget.value as Environment)}
+                className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-xs outline-none transition focus:border-tucano-400"
+              >
+                <option value="development">Development</option>
+                <option value="staging">Staging</option>
+                <option value="production">Production</option>
+              </select>
+            </div>
+            <label className="flex min-w-40 items-center gap-2 pb-2 text-xs font-medium">
+              <ShieldCheck className="h-4 w-4 text-tucano-400" />
+              <span>Read-only</span>
+              <Switch checked={readOnly} onCheckedChange={setReadOnly} />
+            </label>
+            <p className="col-span-2 text-[11px] leading-4 text-muted-foreground">
+              Read-only blocks every write, including document edits, indexes, restores and collection changes.
+            </p>
           </div>
 
           <div className="space-y-1.5">

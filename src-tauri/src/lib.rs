@@ -56,6 +56,7 @@ pub fn run() {
             mongo::list_collections,
             mongo::find_documents,
             mongo::aggregate,
+            mongo::distinct,
             mongo::insert_document,
             mongo::update_document,
             mongo::delete_document,
@@ -71,6 +72,7 @@ pub fn run() {
             mongo::drop_index,
             // schema / autocomplete
             schema::sample_fields,
+            schema::analyze_schema,
             // overview
             overview::server_overview,
             // history

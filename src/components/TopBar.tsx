@@ -1,9 +1,10 @@
-import { Database, Gauge, Monitor, Moon, Plug, Settings as Cog, Sun } from "lucide-react";
+import { AlertTriangle, Database, Gauge, LockKeyhole, Monitor, Moon, Plug, Settings as Cog, Sun } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LogoMark } from "@/components/Logo";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useTheme, toggleTheme } from "@/stores/theme";
 import { useTree } from "@/stores/tree";
+import { useConnections } from "@/stores/connections";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +16,9 @@ export function TopBar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const setRoute = useTree((s) => s.setRoute);
   const open = useTree((s) => s.open);
   const t = useT();
+  const connections = useConnections((s) => s.list);
+  const active = useConnections((s) => s.active);
+  const guarded = connections.find((connection) => active.has(connection.id) && (connection.environment === "production" || connection.readOnly));
 
   const ThemeIcon = mode === "dark" ? Moon : mode === "light" ? Sun : Monitor;
   // Nav (Databases / Overview / Connections) only makes sense once the user is
@@ -47,6 +51,22 @@ export function TopBar({ onOpenSettings }: { onOpenSettings: () => void }) {
         <span className="font-extrabold tracking-tight">Tucano</span>{" "}
         <span className="font-accent text-[17px] font-medium text-tucano-400">DB</span>
       </div>
+
+      {guarded && (
+        <div
+          className={cn(
+            "flex min-w-0 items-center gap-1.5 rounded-lg border px-2 py-1 text-[10px] font-bold uppercase tracking-wide",
+            guarded.environment === "production"
+              ? "border-amber-500/45 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+              : "border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300"
+          )}
+          title={`${guarded.name}: ${guarded.environment}${guarded.readOnly ? ", read-only" : ""}`}
+        >
+          {guarded.environment === "production" ? <AlertTriangle size={12} /> : <LockKeyhole size={12} />}
+          <span className="max-w-32 truncate">{guarded.environment}</span>
+          {guarded.readOnly && <LockKeyhole size={11} />}
+        </div>
+      )}
 
       <div className="h-full flex-1" />
 
