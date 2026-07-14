@@ -22,6 +22,12 @@ async function bridge(path, params = {}) {
   return res.json();
 }
 
+async function bridgePost(path, body) {
+  const res = await fetch(new URL(path, BRIDGE), { method: "POST", headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json" }, body: JSON.stringify(body) });
+  if (!res.ok) throw new Error(`bridge ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
 const TOOLS = [
   {
     name: "list_connections",
@@ -97,6 +103,18 @@ const TOOLS = [
     description: "Return MongoDB execution statistics for a read-only find filter.",
     inputSchema: { type: "object", properties: { conn: { type: "string" }, db: { type: "string" }, coll: { type: "string" }, filter: { type: "string" } }, required: ["conn", "db", "coll"] },
     handler: (a) => bridge("/explain", a),
+  },
+  {
+    name: "draft_query_in_editor",
+    description: "Place a read-only MongoDB query draft in the Tucano editor. query may be a complete db.<collection>.find(...) expression or a JSON filter object; it is never executed.",
+    inputSchema: { type: "object", properties: { conn: { type: "string" }, db: { type: "string" }, coll: { type: "string" }, query: { description: "A complete read-only Mongo expression or a JSON filter object" }, language: { type: "string", enum: ["mongo", "sql"] } }, required: ["conn", "db", "coll", "query"] },
+    handler: (a) => bridgePost("/query-draft", a),
+  },
+  {
+    name: "run_query_in_editor",
+    description: "Open the target collection in Tucano, place a read-only query in the editor and execute it visibly. query may be a complete db.<collection>.find(...) expression or a JSON filter object. Never use this for mutations.",
+    inputSchema: { type: "object", properties: { conn: { type: "string" }, db: { type: "string" }, coll: { type: "string" }, query: { description: "A complete read-only Mongo expression or a JSON filter object" }, language: { type: "string", enum: ["mongo", "sql"] } }, required: ["conn", "db", "coll", "query"] },
+    handler: (a) => bridgePost("/query-draft", { ...a, execute: true }),
   },
   {
     name: "overview",

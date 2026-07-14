@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Eraser, History, Loader2, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
+import { Eraser, FilePenLine, History, Loader2, RefreshCw, RotateCcw, ShieldCheck, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -137,12 +137,13 @@ export function HistoryPanel({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="tcn-glass-strong sm:max-w-4xl">
+      <DialogContent className="tcn-glass-strong sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <History className="h-4 w-4 text-tucano-400" />
             {t("history.title")} — <span className="mono text-tucano-400">{coll}</span>
           </DialogTitle>
+          <p className="pl-6 text-xs leading-5 text-muted-foreground">Restore points created from edits and deletions made in Tucano DB.</p>
         </DialogHeader>
 
         {/* Toolbar */}
@@ -150,38 +151,52 @@ export function HistoryPanel({
           <Button variant="ghost" size="sm" className="h-7 gap-1.5" onClick={reload}>
             <RefreshCw className="h-3.5 w-3.5" /> {t("common.refresh")}
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 gap-1.5 text-tucano-400 disabled:text-muted-foreground"
-            disabled={!canRestore || !!busy}
-            onClick={restore}
-          >
-            {busy === "restore" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
-            {t("hist.restore")}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 gap-1.5"
-            disabled={!selected || !!busy}
-            onClick={remove}
-          >
-            <Trash2 className="h-3.5 w-3.5" /> {t("hist.remove")}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 gap-1.5 text-destructive"
-            disabled={entries.length === 0 || !!busy}
-            onClick={empty}
-          >
-            <Eraser className="h-3.5 w-3.5" /> {t("hist.emptyAll")}
-          </Button>
+          {entries.length > 0 && <>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5 text-tucano-400 disabled:text-muted-foreground"
+              disabled={!canRestore || !!busy}
+              onClick={restore}
+            >
+              {busy === "restore" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+              {t("hist.restore")}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5"
+              disabled={!selected || !!busy}
+              onClick={remove}
+            >
+              <Trash2 className="h-3.5 w-3.5" /> {t("hist.remove")}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto h-7 gap-1.5 text-destructive"
+              disabled={!!busy}
+              onClick={empty}
+            >
+              <Eraser className="h-3.5 w-3.5" /> {t("hist.emptyAll")}
+            </Button>
+          </>}
         </div>
 
         {entries.length === 0 ? (
-          <div className="py-12 text-center text-sm text-muted-foreground">{t("history.empty")}</div>
+          <div className="py-8">
+            <div className="mx-auto max-w-md text-center">
+              <div className="mx-auto grid h-11 w-11 place-items-center rounded-full bg-tucano-400/10 text-tucano-600 dark:text-tucano-300">
+                <History className="h-5 w-5" />
+              </div>
+              <h3 className="mt-4 text-sm font-semibold">No restore points yet</h3>
+              <p className="mx-auto mt-2 max-w-sm text-xs leading-5 text-muted-foreground">This collection has not been changed through Tucano DB. Snapshots appear here before supported edits and deletions, ready to inspect or restore.</p>
+            </div>
+            <div className="mx-auto mt-7 grid max-w-xl grid-cols-2 gap-x-8 border-t border-border pt-4 text-left max-sm:grid-cols-1 max-sm:gap-y-3">
+              <EmptyHistoryNote icon={<FilePenLine className="h-4 w-4" />} title="Changes are captured" description="Updates, replacements and deletions create a local restore point." />
+              <EmptyHistoryNote icon={<ShieldCheck className="h-4 w-4" />} title="You stay in control" description="Restoring is always an explicit action and follows connection safety rules." />
+            </div>
+          </div>
         ) : (
           <div className="flex flex-col gap-2" style={{ height: 460 }}>
             {/* Entries table */}
@@ -225,5 +240,17 @@ export function HistoryPanel({
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function EmptyHistoryNote({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
+  return (
+    <div className="flex gap-2.5">
+      <span className="mt-0.5 text-tucano-600 dark:text-tucano-300">{icon}</span>
+      <div>
+        <p className="text-xs font-medium">{title}</p>
+        <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">{description}</p>
+      </div>
+    </div>
   );
 }

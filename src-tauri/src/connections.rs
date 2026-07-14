@@ -5,7 +5,7 @@ use tauri::State;
 
 type R<T> = Result<T, String>;
 
-async fn open_client(uri: &str) -> R<mongodb::Client> {
+pub(crate) async fn open_client(uri: &str) -> R<mongodb::Client> {
     use mongodb::options::{ClientOptions, ResolverConfig};
     use std::time::Duration;
 

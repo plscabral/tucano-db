@@ -178,7 +178,7 @@ const SHELL_WIDTH = 72;
  * Compound values stay inline while short and wrap onto indented lines once
  * they grow past {@link SHELL_WIDTH}.
  */
-export function toShellLiteral(value: unknown, depth = 0): string {
+export function toShellLiteral(value: unknown, depth = 0, expandRoot = false): string {
   if (value === null) return "null";
   if (typeof value === "string") return JSON.stringify(value);
   if (typeof value === "number" || typeof value === "boolean") return String(value);
@@ -223,7 +223,7 @@ export function toShellLiteral(value: unknown, depth = 0): string {
     if (ks.length === 0) return "{}";
     const entries = ks.map((k) => `${shellKey(k)}: ${toShellLiteral(obj[k], depth + 1)}`);
     const inline = `{ ${entries.join(", ")} }`;
-    if (inline.length + depth * 2 <= SHELL_WIDTH && !inline.includes("\n")) return inline;
+    if (!expandRoot && inline.length + depth * 2 <= SHELL_WIDTH && !inline.includes("\n")) return inline;
     const pad = SHELL_INDENT.repeat(depth + 1);
     return `{\n${entries.map((e) => pad + e).join(",\n")}\n${SHELL_INDENT.repeat(depth)}}`;
   }
@@ -368,6 +368,25 @@ function isPresent(s: string | undefined): boolean {
   return (s ?? "").trim() !== "";
 }
 
+/** Format an object filter vertically when it contains a nested condition. */
+function formatFindFilter(filter: string): string {
+  const source = filter.trim();
+  if (!source) return "{}";
+  try {
+    const value = JSON.parse(source);
+    const hasNestedCondition =
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      Object.values(value as Record<string, unknown>).some(
+        (entry) => entry && typeof entry === "object"
+      );
+    return toShellLiteral(value, 0, hasNestedCondition);
+  } catch {
+    return source;
+  }
+}
+
 /**
  * Reconstruct a mongo-shell `find()` query as a chained, multi-line statement —
  * `.projection()/.sort()/.skip()/.limit()` on their own indented lines, each
@@ -382,11 +401,12 @@ export function serializeFind(p: {
   limit?: number;
   skip?: number;
 }): string {
-  let out = `${collRef(p.coll)}.find(${jsonToShell(p.filter) || "{}"})`;
+  const filter = formatFindFilter(p.filter);
+  let out = `${collRef(p.coll)}.find(${filter})`;
   if (isPresent(p.projection)) out += `\n    .projection(${jsonToShell(p.projection)})`;
   if (isPresent(p.sort)) out += `\n    .sort(${jsonToShell(p.sort)})`;
   if (p.skip && p.skip > 0) out += `\n    .skip(${p.skip})`;
-  if (p.limit !== undefined) out += `\n    .limit(${p.limit})`;
+  if (p.limit !== undefined) out += filter.includes("\n") ? `.limit(${p.limit})` : `\n    .limit(${p.limit})`;
   return out;
 }
 

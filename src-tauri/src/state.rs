@@ -106,6 +106,7 @@ pub struct AppState {
     pub settings: Mutex<AppSettings>,
     pub mcp_settings: Mutex<McpSettings>,
     pub mcp_stop_tx: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+    pub terminal_sessions: Mutex<HashMap<String, crate::terminal::TerminalSession>>,
     /// Kept for emitting events to the frontend in future iterations.
     #[allow(dead_code)]
     pub app: AppHandle,
@@ -132,6 +133,7 @@ impl AppState {
             settings: Mutex::new(settings),
             mcp_settings: Mutex::new(mcp_settings),
             mcp_stop_tx: Mutex::new(None),
+            terminal_sessions: Mutex::new(HashMap::new()),
             app,
         })
     }
@@ -158,6 +160,34 @@ impl AppState {
             .get(conn_id)
             .cloned()
             .ok_or_else(|| "not connected".to_string())
+    }
+
+    /// Restores a saved Mongo connection on demand for local MCP reads.
+    /// Connecting is not a data operation and does not bypass write safety.
+    pub async fn client_or_connect(&self, conn_id: &str) -> Result<mongodb::Client, String> {
+        if let Ok(client) = self.client(conn_id) {
+            return Ok(client);
+        }
+
+        let uri = self
+            .saved
+            .lock()
+            .iter()
+            .find(|connection| connection.id == conn_id)
+            .map(|connection| connection.uri.clone())
+            .ok_or_else(|| "connection not found".to_string())?;
+        let client = crate::connections::open_client(&uri).await?;
+        self.clients.lock().insert(conn_id.to_string(), client.clone());
+        if let Some(connection) = self
+            .saved
+            .lock()
+            .iter_mut()
+            .find(|connection| connection.id == conn_id)
+        {
+            connection.last_connected = Some(now_ms());
+        }
+        self.persist_connections();
+        Ok(client)
     }
 
     /// Enforce the connection safety policy at the command boundary. UI controls

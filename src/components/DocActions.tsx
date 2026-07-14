@@ -1,4 +1,4 @@
-import { Clipboard, ClipboardCopy, ClipboardList, Copy, Filter, Pencil, Trash2 } from "lucide-react";
+import { Braces, Clipboard, ClipboardCopy, ClipboardList, Copy, Filter, Pencil, Trash2 } from "lucide-react";
 import {
   ContextMenuContent,
   ContextMenuItem,
@@ -8,6 +8,8 @@ import { useDocActions, prettyDoc, docLabel, type DocEditMode } from "@/stores/d
 import { useTabs } from "@/stores/tabs";
 import { displayValue, isContainer } from "@/lib/bsonTypes";
 import { useT } from "@/lib/i18n";
+import { isHtmlContent } from "@/lib/htmlPreview";
+import { useHtmlPreview } from "@/stores/htmlPreview";
 
 function copy(text: string) {
   navigator.clipboard.writeText(text).catch(() => {});
@@ -96,9 +98,19 @@ export function FieldContextMenu({
 }) {
   const t = useT();
   const addToFilter = useTabs((s) => s.addToFilter);
+  const openHtmlPreview = useHtmlPreview((s) => s.open);
+  const hasHtml = isHtmlContent(value);
   return (
     <ContextMenuContent className="w-52">
       <FieldCopyItems fieldKey={fieldKey} value={value} />
+      {hasHtml && (
+        <>
+          <ContextMenuSeparator />
+          <ContextMenuItem onClick={() => openHtmlPreview(path, value)}>
+            <Braces className="mr-2 h-3.5 w-3.5 text-tucano-500" /> {t("html.open")}
+          </ContextMenuItem>
+        </>
+      )}
       <ContextMenuSeparator />
       <ContextMenuItem onClick={() => addToFilter(path, value)}>
         <Filter className="mr-2 h-3.5 w-3.5" /> {t("filter.add")}

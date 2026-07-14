@@ -18,6 +18,7 @@ pub struct DatabaseInfo {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ServerOverview {
+    pub server_status_available: bool,
     pub version: String,
     pub host: String,
     pub uptime_seconds: f64,
@@ -49,32 +50,34 @@ fn num_path(d: &Document, a: &str, b: &str) -> f64 {
 
 #[tauri::command]
 pub async fn server_overview(state: State<'_, Arc<AppState>>, conn_id: String) -> R<ServerOverview> {
-    let client = state.client(&conn_id)?;
+    let client = state.client_or_connect(&conn_id).await?;
     let admin = client.database("admin");
 
-    let status = admin
-        .run_command(doc! { "serverStatus": 1 })
-        .await
-        .map_err(|e| e.to_string())?;
+    // `serverStatus` requires cluster-monitor privileges, which many valid
+    // read-only accounts do not have. Overview remains useful with the data
+    // permissions that are available instead of surfacing Mongo's raw error.
+    let status = admin.run_command(doc! { "serverStatus": 1 }).await.ok();
+    let empty_status = Document::new();
+    let status_doc = status.as_ref().unwrap_or(&empty_status);
 
-    let version = status.get_str("version").unwrap_or("unknown").to_string();
-    let host = status.get_str("host").unwrap_or("").to_string();
-    let uptime_seconds = num(&status, "uptime");
+    let version = status_doc.get_str("version").unwrap_or("restricted").to_string();
+    let host = status_doc.get_str("host").unwrap_or("restricted access").to_string();
+    let uptime_seconds = num(status_doc, "uptime");
 
-    let connections_current = num_path(&status, "connections", "current");
-    let connections_available = num_path(&status, "connections", "available");
+    let connections_current = num_path(status_doc, "connections", "current");
+    let connections_available = num_path(status_doc, "connections", "available");
 
     let mut opcounters = BTreeMap::new();
-    if let Ok(oc) = status.get_document("opcounters") {
+    if let Ok(oc) = status_doc.get_document("opcounters") {
         for (k, _) in oc {
             opcounters.insert(k.clone(), num(oc, k));
         }
     }
 
-    let mem_resident_mb = num_path(&status, "mem", "resident");
-    let mem_virtual_mb = num_path(&status, "mem", "virtual");
-    let network_bytes_in = num_path(&status, "network", "bytesIn");
-    let network_bytes_out = num_path(&status, "network", "bytesOut");
+    let mem_resident_mb = num_path(status_doc, "mem", "resident");
+    let mem_virtual_mb = num_path(status_doc, "mem", "virtual");
+    let network_bytes_in = num_path(status_doc, "network", "bytesIn");
+    let network_bytes_out = num_path(status_doc, "network", "bytesOut");
 
     // Per-database sizes.
     let specs = client.list_databases().await.map_err(|e| e.to_string())?;
@@ -104,6 +107,7 @@ pub async fn server_overview(state: State<'_, Arc<AppState>>, conn_id: String) -
     }
 
     Ok(ServerOverview {
+        server_status_available: status.is_some(),
         version,
         host,
         uptime_seconds,

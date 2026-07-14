@@ -109,6 +109,7 @@ export interface SchemaAnalysis {
 }
 
 export interface ServerOverview {
+  serverStatusAvailable: boolean;
   version: string;
   host: string;
   uptimeSeconds: number;
@@ -169,7 +170,7 @@ export interface McpSettings {
 }
 
 /** Document view modes in the workspace. */
-export type ViewMode = "tree" | "table" | "json" | "html";
+export type ViewMode = "tree" | "table" | "json";
 
 /** A query describing what find_documents should fetch. */
 export interface DocQuery {

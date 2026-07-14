@@ -9,6 +9,7 @@ mod overview;
 mod schema;
 mod settings;
 mod state;
+mod terminal;
 
 use state::AppState;
 use std::sync::Arc;
@@ -94,6 +95,11 @@ pub fn run() {
             mcp_install::list_mcp_clients,
             mcp_install::install_mcp_client,
             mcp_install::uninstall_mcp_client,
+            // integrated AI terminal
+            terminal::start_ai_terminal,
+            terminal::write_ai_terminal,
+            terminal::resize_ai_terminal,
+            terminal::stop_ai_terminal,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tucano DB");

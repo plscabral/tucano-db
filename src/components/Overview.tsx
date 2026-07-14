@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Activity, Cpu, Database, HardDrive, Loader2, Network, Plug, Server } from "lucide-react";
+import { Activity, Cpu, Database, HardDrive, Info, Loader2, Network, Plug, Server } from "lucide-react";
 import { ipc } from "@/lib/ipc";
 import { useTree } from "@/stores/tree";
 import type { ServerOverview } from "@/lib/types";
@@ -51,6 +51,14 @@ function Bars({ data }: { data: { label: string; value: number; render: string }
   );
 }
 
+function overviewError(error: unknown): string {
+  const message = String(error).toLowerCase();
+  if (message.includes("unauthorized") || message.includes("not authorized")) {
+    return "This account can browse data, but it does not have permission to load server-wide metrics.";
+  }
+  return "The overview could not be loaded. Check the connection and try again.";
+}
+
 export function Overview() {
   const connId = useTree((s) => s.focusedConn ?? s.open[0] ?? null);
   const t = useT();
@@ -61,7 +69,7 @@ export function Overview() {
     if (!connId) return;
     setData(null);
     setError(null);
-    ipc.serverOverview(connId).then(setData).catch((e) => setError(String(e)));
+    ipc.serverOverview(connId).then(setData).catch((e) => setError(overviewError(e)));
   }, [connId]);
 
   if (error) {
@@ -92,6 +100,13 @@ export function Overview() {
           <Display lead={t("ov.titleLead")} accent={t("ov.titleAccent")} />
         </div>
         <p className="mb-6 mono text-xs text-muted-foreground">{data.host}</p>
+
+        {!data.serverStatusAvailable && (
+          <div className="mb-6 flex items-start gap-2 rounded-lg border border-tucano-400/25 bg-tucano-400/10 px-3 py-2 text-xs leading-5 text-muted-foreground">
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-tucano-600 dark:text-tucano-300" />
+            <span>Server-wide metrics require additional MongoDB privileges. Collection and database information remains available.</span>
+          </div>
+        )}
 
         <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
           <StatCard icon={Server} label={t("ov.version")} value={data.version} sub="MongoDB" />

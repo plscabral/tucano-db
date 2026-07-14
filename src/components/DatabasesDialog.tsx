@@ -56,11 +56,12 @@ export function DatabasesDialog() {
 
   return (
     <Dialog open onOpenChange={(o) => !o && close()}>
-      <DialogContent className="tcn-glass-strong sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+      <DialogContent className="tcn-glass-strong max-w-[calc(100vw-2rem)] sm:max-w-md">
+        <DialogHeader className="min-w-0 pr-8">
+          <DialogTitle className="flex min-w-0 items-center gap-2">
             <ListChecks className="h-4 w-4 text-tucano-400" />
-            {t("dbsel.title")} — <span className="truncate">{conn.name}</span>
+            <span className="shrink-0">{t("dbsel.title")} —</span>
+            <span className="min-w-0 flex-1 truncate" title={conn.name}>{conn.name}</span>
           </DialogTitle>
         </DialogHeader>
 

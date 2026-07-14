@@ -1,4 +1,4 @@
-import { Braces, FileDown, FileStack, FileText, ListTree, Plus, RefreshCw, Table2, Timer } from "lucide-react";
+import { Braces, FileDown, FileStack, ListTree, Plus, RefreshCw, Table2, Timer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -15,7 +15,6 @@ const VIEWS: { mode: ViewMode; icon: typeof ListTree; key: string }[] = [
   { mode: "tree", icon: ListTree, key: "view.tree" },
   { mode: "table", icon: Table2, key: "view.table" },
   { mode: "json", icon: Braces, key: "view.json" },
-  { mode: "html", icon: FileText, key: "view.html" },
 ];
 
 export function Toolbar({ tab }: { tab: Tab }) {
@@ -27,26 +26,24 @@ export function Toolbar({ tab }: { tab: Tab }) {
   const { enabled, intervalMs, setEnabled, setIntervalMs } = useAutoRefresh();
 
   return (
-    <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
+    <div className="flex h-10 shrink-0 items-center gap-2 overflow-x-auto border-b border-border bg-card px-3 scroll-thin">
       <FileStack className="h-4 w-4 shrink-0 text-tucano-400/80" />
       <span className="mono truncate text-[13px] font-semibold">{tab.coll ?? "query"}</span>
       <span className="mono hidden truncate text-[11px] text-muted-foreground/60 sm:block">
         {tab.connName} · {tab.db}
       </span>
 
-      <div className="flex-1" />
-
       {/* View switch */}
-      <div className="flex items-center gap-0.5 rounded-lg bg-muted p-0.5">
+      <div className="ml-auto flex shrink-0 items-center gap-0.5">
         {VIEWS.map((v) => (
           <Tooltip key={v.mode}>
             <TooltipTrigger asChild>
               <button
                 onClick={() => setViewMode(tab.id, v.mode)}
                 className={cn(
-                  "grid h-6 w-7 place-items-center rounded-md transition",
+                  "grid h-7 w-7 place-items-center rounded-md transition",
                   tab.viewMode === v.mode
-                    ? "bg-card text-tucano-600 shadow-sm dark:text-tucano-300"
+                    ? "bg-muted text-tucano-600 dark:text-tucano-300"
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >

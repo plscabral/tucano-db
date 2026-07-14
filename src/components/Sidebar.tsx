@@ -300,13 +300,15 @@ export function Sidebar() {
                                           ? "tcn-accent-soft font-medium text-tucano-700 dark:text-tucano-200 ring-1 ring-inset ring-tucano-400/25"
                                           : "hover:bg-accent"
                                       )}
-                                      onClick={() =>
-                                        conn &&
-                                        openCollection(
-                                          { connId, connName: conn.name, connColor: color, db: dbi.name },
-                                          c.name
-                                        )
-                                      }
+                                      onClick={() => {
+                                        setRoute("browse");
+                                        if (conn) {
+                                          openCollection(
+                                            { connId, connName: conn.name, connColor: color, db: dbi.name },
+                                            c.name
+                                          );
+                                        }
+                                      }}
                                     >
                                       <ChevronRight
                                         className={cn(

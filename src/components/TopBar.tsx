@@ -1,4 +1,4 @@
-import { AlertTriangle, Database, Gauge, LockKeyhole, Monitor, Moon, Plug, Settings as Cog, Sun } from "lucide-react";
+import { AlertTriangle, Database, Gauge, LockKeyhole, Monitor, Moon, Plug, Settings as Cog, Sun, TerminalSquare } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LogoMark } from "@/components/Logo";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -7,6 +7,7 @@ import { useTree } from "@/stores/tree";
 import { useConnections } from "@/stores/connections";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { useAiTerminal } from "@/stores/aiTerminal";
 
 const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -18,6 +19,8 @@ export function TopBar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const t = useT();
   const connections = useConnections((s) => s.list);
   const active = useConnections((s) => s.active);
+  const aiTerminalOpen = useAiTerminal((s) => s.open);
+  const toggleAiTerminal = useAiTerminal((s) => s.toggle);
   const guarded = connections.find((connection) => active.has(connection.id) && (connection.environment === "production" || connection.readOnly));
 
   const ThemeIcon = mode === "dark" ? Moon : mode === "light" ? Sun : Monitor;
@@ -74,22 +77,39 @@ export function TopBar({ onOpenSettings }: { onOpenSettings: () => void }) {
       {showNav && (
         <div className="flex shrink-0 items-center gap-0.5 rounded-xl bg-ink-50/50 p-0.5 ring-1 ring-inset ring-ink-100 dark:bg-white/[0.02] dark:ring-white/[0.07]">
           <NavButton
-            active={route === "browse"}
-            icon={<Database size={15} />}
-            label={t("nav.databases")}
-            onClick={() => setRoute("browse")}
-          />
-          <NavButton
             active={route === "overview"}
             icon={<Gauge size={15} />}
             label={t("nav.overview")}
             onClick={() => setRoute("overview")}
+          />
+          <NavButton
+            active={route === "browse"}
+            icon={<Database size={15} />}
+            label={t("nav.databases")}
+            onClick={() => setRoute("browse")}
           />
         </div>
       )}
 
       {/* Grouped secondary controls. */}
       <div className="flex shrink-0 items-center gap-0.5 rounded-xl bg-ink-50/50 p-0.5 ring-1 ring-inset ring-ink-100 dark:bg-white/[0.02] dark:ring-white/[0.07]">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={toggleAiTerminal}
+              aria-pressed={aiTerminalOpen}
+              className={cn(
+                "grid h-8 w-8 place-items-center rounded-lg transition",
+                aiTerminalOpen
+                  ? "tcn-accent-soft text-tucano-700 dark:text-tucano-300"
+                  : "opacity-75 hover:bg-ink-100/70 hover:opacity-100 dark:hover:bg-white/[0.06]"
+              )}
+            >
+              <TerminalSquare size={15} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Terminal</TooltipContent>
+        </Tooltip>
         {showNav && (
           <Tooltip>
             <TooltipTrigger asChild>

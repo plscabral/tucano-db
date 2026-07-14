@@ -138,4 +138,11 @@ export const ipc = {
     ),
   installMcpClient: (id: string) => invoke<void>("install_mcp_client", { id }),
   uninstallMcpClient: (id: string) => invoke<void>("uninstall_mcp_client", { id }),
+
+  // ── integrated AI terminal ──────────────────────────────────────────────
+  startAiTerminal: (cols: number, rows: number) =>
+    invoke<string>("start_ai_terminal", { cols, rows }),
+  writeAiTerminal: (sessionId: string, data: string) => invoke<void>("write_ai_terminal", { sessionId, data }),
+  resizeAiTerminal: (sessionId: string, cols: number, rows: number) => invoke<void>("resize_ai_terminal", { sessionId, cols, rows }),
+  stopAiTerminal: (sessionId: string) => invoke<void>("stop_ai_terminal", { sessionId }),
 };

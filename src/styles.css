@@ -127,6 +127,60 @@ html.dark .tcn-grid {
   letter-spacing: -0.01em;
 }
 
+/* xterm sizes its viewport from its immediate host. The explicit block height
+   prevents the absolutely positioned viewport from escaping a flex panel. */
+.ai-terminal-host > .xterm {
+  height: 100%;
+}
+
+.ai-terminal-host .xterm-viewport {
+  background-color: var(--tcn-canvas) !important;
+  scrollbar-color: hsl(var(--foreground) / 0.2) transparent;
+}
+
+.ai-terminal-host .xterm-viewport::-webkit-scrollbar {
+  width: 8px;
+}
+
+.ai-terminal-host .xterm-viewport::-webkit-scrollbar-thumb {
+  background: hsl(var(--foreground) / 0.2);
+  border-radius: 8px;
+}
+
+.ai-terminal-panel {
+  width: var(--ai-terminal-width, 720px);
+  flex-basis: var(--ai-terminal-width, 720px);
+  background: var(--tcn-canvas);
+}
+
+.ai-terminal-header {
+  background: var(--tcn-canvas);
+}
+
+.ai-terminal-resize::after {
+  content: "";
+  position: absolute;
+  inset: 0 3px;
+  background: transparent;
+  transition: background-color 150ms ease-out;
+}
+
+.ai-terminal-resize:hover::after,
+.ai-terminal-resize:active::after {
+  background: rgba(var(--tucano-rgb), 0.8);
+}
+
+@media (max-width: 900px) {
+  .ai-terminal-panel {
+    width: 100% !important;
+    flex-basis: 100% !important;
+  }
+
+  .ai-terminal-resize {
+    display: none;
+  }
+}
+
 /* Editorial display accent — Newsreader italic for the "accent word" in
    display headings (brand wordmark, onboarding, empty states). */
 .font-accent {

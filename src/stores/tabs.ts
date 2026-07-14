@@ -63,7 +63,7 @@ type TabsState = {
   closeRight: (id: string) => void;
   duplicateTab: (id: string) => void;
   closeForServer: (connId: string) => void;
-  newTab: (ctx: Ctx, coll?: string) => string;
+  newTab: (ctx: Ctx, coll?: string, runOnOpen?: boolean) => string;
   openCollection: (ctx: Ctx, coll: string) => void;
   update: (id: string, patch: Partial<Tab>) => void;
   setPage: (id: string, page: number) => void;
@@ -134,7 +134,7 @@ export const useTabs = create<TabsState>((set, get) => ({
     set({ tabs, activeId });
   },
 
-  newTab(ctx, coll) {
+  newTab(ctx, coll, runOnOpen = true) {
     const id = nextId();
     const template = get().initialScript.trim();
     const query = coll
@@ -163,7 +163,7 @@ export const useTabs = create<TabsState>((set, get) => ({
       dirty: true,
     };
     set({ tabs: [...get().tabs, tab], activeId: id });
-    if (coll && get().autoExecute) get().run(id);
+    if (coll && runOnOpen && get().autoExecute) get().run(id);
     return id;
   },
 
